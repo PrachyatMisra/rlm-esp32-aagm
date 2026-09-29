@@ -122,6 +122,16 @@ def run_golden_check() -> dict:
     return json.loads(proc.stdout.strip())
 
 
+def get_vcd_table_data() -> list[dict]:
+    vcd_file = VERILOG_DIR / "aagm_coprocessor.vcd"
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "tools"))
+        from vcd_table_viewer import parse_vcd_table
+        return parse_vcd_table(vcd_file)
+    except Exception:
+        return []
+
+
 def run_verilog_check() -> dict:
     try:
         proc = subprocess.run(["make", "-C", str(VERILOG_DIR), "check"],
@@ -130,7 +140,8 @@ def run_verilog_check() -> dict:
         status = "PASS" if ("AAGM_VERILOG_PASS" in combined_output and "AAGM_COPROCESSOR_VERILOG_PASS" in combined_output) else "FAIL"
         return {
             "output": combined_output.strip(),
-            "status": status
+            "status": status,
+            "table": get_vcd_table_data(),
         }
     except Exception:
         sim_gate = VERILOG_DIR / "sim_aagm_gate.py"
@@ -143,7 +154,8 @@ def run_verilog_check() -> dict:
         combined_output = proc_g.stdout + "\n" + proc_c.stdout
         return {
             "output": combined_output.strip(),
-            "status": "PASS" if ("AAGM_VERILOG_PASS" in combined_output and "AAGM_COPROCESSOR_VERILOG_PASS" in combined_output) else "FAIL"
+            "status": "PASS" if ("AAGM_VERILOG_PASS" in combined_output and "AAGM_COPROCESSOR_VERILOG_PASS" in combined_output) else "FAIL",
+            "table": get_vcd_table_data(),
         }
 
 
@@ -652,8 +664,8 @@ HTML_CONTENT = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- Hardware Waveform Simulation Trace Log -->
-        <div class="space-y-3">
+        <!-- Hardware Waveform Simulation Trace Log & Dynamic Table -->
+        <div class="space-y-4">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
               <i class="fa-solid fa-terminal text-emerald-400"></i>
@@ -661,13 +673,45 @@ HTML_CONTENT = """<!DOCTYPE html>
             </h3>
             <div class="flex items-center gap-2">
               <span class="text-[11px] text-gray-400">Generates real <code>.vcd</code> files</span>
-              <button onclick="runVerilogTest()" id="btn-coproc-resim" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-mono flex items-center gap-1.5">
+              <button onclick="runVerilogTest()" id="btn-coproc-resim" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-mono flex items-center gap-1.5 shadow transition">
                 <i class="fa-solid fa-play text-[10px]"></i>
                 <span>Re-simulate</span>
               </button>
             </div>
           </div>
-          <pre id="coproc-verilog-log" class="p-4 bg-gray-950 rounded-xl text-emerald-400 font-mono text-[11px] h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">Simulating APB Coprocessor...</pre>
+          <pre id="coproc-verilog-log" class="p-4 bg-gray-950 rounded-xl text-emerald-400 font-mono text-[11px] h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed border border-gray-800">Simulating APB Coprocessor...</pre>
+
+          <!-- Dynamic Cycle-by-Cycle RTL Verification Table -->
+          <div class="space-y-2 pt-2">
+            <div class="flex justify-between items-center">
+              <h4 class="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-table-list"></i>
+                <span>Cycle-by-Cycle Verification Table (Terminal vs Browser Parity)</span>
+              </h4>
+              <span class="text-[10px] text-gray-400 font-mono">Parsed live from <code>aagm_coprocessor.vcd</code></span>
+            </div>
+            <div class="overflow-x-auto max-h-64 overflow-y-auto bg-gray-950 border border-gray-800 rounded-xl">
+              <table class="w-full text-left text-[11px] font-mono text-gray-300">
+                <thead class="bg-gray-900 text-gray-400 sticky top-0 border-b border-gray-800">
+                  <tr>
+                    <th class="p-2">Time</th>
+                    <th class="p-2">RST_N</th>
+                    <th class="p-2">Addr</th>
+                    <th class="p-2">WData</th>
+                    <th class="p-2">Step</th>
+                    <th class="p-2">Cum. Mass (Q1.15 / Dec)</th>
+                    <th class="p-2">Prearm</th>
+                    <th class="p-2">Halt IRQ</th>
+                    <th class="p-2">Abort</th>
+                    <th class="p-2">Hardware Action / State</th>
+                  </tr>
+                </thead>
+                <tbody id="vcd-table-body" class="divide-y divide-gray-800/80">
+                  <tr><td colspan="10" class="p-3 text-center text-gray-500">Loading cycle table from VCD trace...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1241,6 +1285,30 @@ HTML_CONTENT = """<!DOCTYPE html>
           vBadge.className = res.status === 'PASS'
             ? 'text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800'
             : 'text-xs font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800';
+        }
+        const tbody = document.getElementById('vcd-table-body');
+        if (tbody && Array.isArray(res.table) && res.table.length) {
+          tbody.innerHTML = '';
+          res.table.forEach(r => {
+            const tr = document.createElement('tr');
+            const isHalt = r.halt_irq.includes('HALT');
+            const isAbort = r.abort_irq.includes('ABORT');
+            const isPrearm = r.prearm.includes('APOP');
+            tr.className = isHalt ? 'bg-emerald-950/30' : (isAbort ? 'bg-rose-950/30' : (isPrearm ? 'bg-purple-950/30' : ''));
+            tr.innerHTML = `
+              <td class="p-2 text-cyan-400">${r.time_ns}</td>
+              <td class="p-2">${r.rst_n}</td>
+              <td class="p-2 text-gray-400">${r.bus_addr}</td>
+              <td class="p-2 text-white font-bold">${r.bus_wdata}</td>
+              <td class="p-2 text-emerald-400">${r.step_k}</td>
+              <td class="p-2 ${isHalt ? 'text-emerald-400 font-bold' : 'text-amber-300'}">${r.mass_q15}</td>
+              <td class="p-2 ${isPrearm ? 'text-purple-400 font-bold' : 'text-gray-500'}">${r.prearm}</td>
+              <td class="p-2 ${isHalt ? 'text-emerald-400 font-bold' : 'text-gray-500'}">${r.halt_irq}</td>
+              <td class="p-2 ${isAbort ? 'text-rose-400 font-bold' : 'text-gray-500'}">${r.abort_irq}</td>
+              <td class="p-2 ${isHalt ? 'text-emerald-300 font-bold' : (isAbort ? 'text-rose-300 font-bold' : (isPrearm ? 'text-purple-300' : 'text-gray-300'))}">${r.hardware_action}</td>
+            `;
+            tbody.appendChild(tr);
+          });
         }
       } catch (e) {
         console.error(e);
