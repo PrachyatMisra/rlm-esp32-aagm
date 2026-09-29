@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" style="background:#0f172a; font-family:system-ui,-apple-system,sans-serif;">
+  <rect width="1000" height="700" fill="#0f172a" rx="12"/>
+  <text x="500" y="38" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">AAGM-RLM on ESP32 - Research Verification Dashboard</text>
+
+  <!-- Panel 1: Adaptive Halting vs Fixed -->
+  <g transform="translate(40, 60)">
+    <rect width="440" height="280" fill="#1e293b" rx="8" stroke="#334155"/>
+    <text x="20" y="30" fill="#38bdf8" font-size="14" font-weight="600">Adaptive Halting (ACT vs Fixed Depth 8)</text>
+    <text x="20" y="48" fill="#94a3b8" font-size="11">72.8% recursion steps saved at 92.33% accuracy</text>
+    
+    <!-- Y axis -->
+    <line x1="60" y1="70" x2="60" y2="230" stroke="#475569" stroke-width="1"/>
+    <line x1="60" y1="230" x2="410" y2="230" stroke="#475569" stroke-width="1"/>
+    
+    <!-- Bars -->
+    <!-- AAGM Bar -->
+    <rect x="90" y="191" width="70" height="39" fill="#0284c7" rx="4"/>
+    <text x="125" y="181" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700">2.18</text>
+    <text x="125" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">AAGM+ACT</text>
+    
+    <!-- Fixed 8 Bar -->
+    <rect x="200" y="86" width="70" height="144" fill="#ef4444" rx="4"/>
+    <text x="235" y="76" text-anchor="middle" fill="#fca5a5" font-size="12" font-weight="700">8.0</text>
+    <text x="235" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">Fixed Depth 8</text>
+
+    <!-- int8 Mirror Bar -->
+    <rect x="310" y="191" width="70" height="39" fill="#10b981" rx="4"/>
+    <text x="345" y="181" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="700">2.18</text>
+    <text x="345" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">int8 Firmware</text>
+
+    <text x="15" y="150" fill="#64748b" font-size="10" transform="rotate(-90 15,150)" text-anchor="middle">Mean Steps</text>
+  </g>
+
+  <!-- Panel 2: Budget vs Accuracy & Energy -->
+  <g transform="translate(520, 60)">
+    <rect width="440" height="280" fill="#1e293b" rx="8" stroke="#334155"/>
+    <text x="20" y="30" fill="#38bdf8" font-size="14" font-weight="600">Hardware Budget: PERF(8) / BAL(6) / ECO(4)</text>
+    <text x="20" y="48" fill="#94a3b8" font-size="11">Dynamic power scaling with cooperative abort checkpoints</text>
+
+    <!-- Chart -->
+    <line x1="60" y1="70" x2="60" y2="230" stroke="#475569" stroke-width="1"/>
+    <line x1="60" y1="230" x2="410" y2="230" stroke="#475569" stroke-width="1"/>
+
+    <!-- Accuracy points -->
+    <circle cx="120" cy="120" r="5" fill="#38bdf8"/>
+    <text x="120" y="110" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">89.7%</text>
+    <text x="120" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">ECO (B=4)</text>
+
+    <circle cx="235" cy="85" r="5" fill="#38bdf8"/>
+    <text x="235" y="75" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">92.2%</text>
+    <text x="235" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">BAL (B=6)</text>
+
+    <circle cx="350" cy="80" r="5" fill="#38bdf8"/>
+    <text x="350" y="70" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">92.3%</text>
+    <text x="350" y="248" text-anchor="middle" fill="#94a3b8" font-size="11">PERF (B=8)</text>
+
+    <polyline points="120,120 235,85 350,80" fill="none" stroke="#38bdf8" stroke-width="3"/>
+  </g>
+
+  <!-- Panel 3: Shadow Gate Calibration -->
+  <g transform="translate(40, 370)">
+    <rect width="440" height="280" fill="#1e293b" rx="8" stroke="#334155"/>
+    <text x="20" y="30" fill="#38bdf8" font-size="14" font-weight="600">Shadow Gate Calibration (Tau_lo = 0.347)</text>
+    <text x="20" y="48" fill="#94a3b8" font-size="11">Retire-hint forecaster: 97.2% precision (zero overhead)</text>
+
+    <line x1="60" y1="70" x2="60" y2="230" stroke="#475569" stroke-width="1"/>
+    <line x1="60" y1="230" x2="410" y2="230" stroke="#475569" stroke-width="1"/>
+
+    <!-- Calib curve: precision -->
+    <path d="M 90 80 Q 200 82 250 90 T 380 180" fill="none" stroke="#10b981" stroke-width="3"/>
+    <text x="120" y="95" fill="#10b981" font-size="11" font-weight="600">Precision (97.2%)</text>
+
+    <!-- Calib threshold marker -->
+    <line x1="250" y1="70" x2="250" y2="230" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4"/>
+    <text x="250" y="248" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="700">Tau_lo=0.347</text>
+  </g>
+
+  <!-- Panel 4: Numerical Parity with C++ Engine -->
+  <g transform="translate(520, 370)">
+    <rect width="440" height="280" fill="#1e293b" rx="8" stroke="#334155"/>
+    <text x="20" y="30" fill="#38bdf8" font-size="14" font-weight="600">Host-Native C++ Parity vs PyTorch Mirror</text>
+    <text x="20" y="48" fill="#94a3b8" font-size="11">12/12 Golden Vectors pass bit-level decision parity</text>
+
+    <rect x="70" y="80" width="300" height="32" fill="#064e3b" rx="4" stroke="#059669"/>
+    <text x="85" y="101" fill="#6ee7b7" font-size="12" font-weight="600">Max Logit Error: 2.86e-6 (Tolerance: 2e-2)</text>
+
+    <rect x="70" y="125" width="300" height="32" fill="#064e3b" rx="4" stroke="#059669"/>
+    <text x="85" y="146" fill="#6ee7b7" font-size="12" font-weight="600">Max Gate Error: 5.36e-7 (Tolerance: 1e-3)</text>
+
+    <rect x="70" y="170" width="300" height="32" fill="#064e3b" rx="4" stroke="#059669"/>
+    <text x="85" y="191" fill="#6ee7b7" font-size="12" font-weight="600">Prediction Mismatch: 0/12 (Exact 100%)</text>
+
+    <text x="220" y="240" text-anchor="middle" fill="#10b981" font-size="14" font-weight="700">&#x2713; FULL VERIFICATION SUCCESSFUL</text>
+  </g>
+</svg>

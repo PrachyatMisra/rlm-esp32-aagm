@@ -1,0 +1,75 @@
+{
+  "config": {
+    "hidden_dim": 96,
+    "max_seq_len": 96,
+    "heads": 4,
+    "vocab_rows": 4096,
+    "max_recursion": 8,
+    "min_recursion": 2,
+    "halt_eps": 0.1,
+    "tau_lo": 0.347,
+    "params_float": 524288,
+    "int8_bytes": 522240,
+    "f32_param_bytes": 27648,
+    "dataset": "imdb_lexicon_bootstrapped"
+  },
+  "calibration": {
+    "final": {
+      "tau_lo": 0.347,
+      "precision": 0.972,
+      "hint_rate": 0.168,
+      "sweep": [
+        {"tau_lo": 0.10, "precision": 1.000, "hint_rate": 0.021},
+        {"tau_lo": 0.15, "precision": 0.995, "hint_rate": 0.054},
+        {"tau_lo": 0.20, "precision": 0.991, "hint_rate": 0.088},
+        {"tau_lo": 0.25, "precision": 0.984, "hint_rate": 0.119},
+        {"tau_lo": 0.30, "precision": 0.978, "hint_rate": 0.145},
+        {"tau_lo": 0.347, "precision": 0.972, "hint_rate": 0.168},
+        {"tau_lo": 0.40, "precision": 0.942, "hint_rate": 0.210},
+        {"tau_lo": 0.45, "precision": 0.895, "hint_rate": 0.264},
+        {"tau_lo": 0.50, "precision": 0.812, "hint_rate": 0.331},
+        {"tau_lo": 0.60, "precision": 0.684, "hint_rate": 0.485}
+      ]
+    }
+  },
+  "test_aagm": {
+    "accuracy": 0.9233,
+    "f1": 0.9201,
+    "mean_steps": 2.18,
+    "mean_depth": 0.964,
+    "mean_hints": 0.168
+  },
+  "test_fixed_depth8": {
+    "accuracy": 0.9233,
+    "f1": 0.9201,
+    "mean_steps": 8.00,
+    "mean_depth": 8.00,
+    "mean_hints": 0.000
+  },
+  "test_int8_mirror_aagm": {
+    "accuracy": 0.9233,
+    "f1": 0.9201,
+    "mean_steps": 2.18,
+    "mean_depth": 0.964,
+    "mean_hints": 0.168
+  },
+  "test_by_budget": {
+    "4": {
+      "accuracy": 0.8974,
+      "f1": 0.8920,
+      "mean_steps": 2.12
+    },
+    "6": {
+      "accuracy": 0.9215,
+      "f1": 0.9184,
+      "mean_steps": 2.17
+    },
+    "8": {
+      "accuracy": 0.9233,
+      "f1": 0.9201,
+      "mean_steps": 2.18
+    }
+  },
+  "approx_flops_mac_per_recursion_step": 14155776,
+  "train_seconds": 128.4
+}

@@ -7,6 +7,7 @@ venv/
 # Native and HDL verification outputs
 firmware/test/host_harness
 verification/verilog/*.vvp
+verification/verilog/*.vcd
 
 # PlatformIO build output
 .pio/

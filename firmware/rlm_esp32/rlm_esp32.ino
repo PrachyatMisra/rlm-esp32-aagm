@@ -4,28 +4,24 @@
  *
  * Hardware-level AAGM (dual-core FreeRTOS):
  *   Core 1 (APP_CPU) - compute task: tokenizer -> recursive block steps ->
- *                      head. Pure math, never handles I/O. Runs INFER/BENCH
+ *                      head. Pure math, never handles I/O. Runs INFER/CHAT/BENCH
  *                      jobs taken from a request mailbox.
  *   Core 0 (PRO_CPU) - AAGM arbiter task: evaluates ALL gates (authoritative
  *                      gate + shadow forecaster) offloaded via a zero-copy
- *                      mailbox; samples the battery (GPIO34 ADC / simulated
- *                      mV); applies the energy->recursion-budget policy with
- *                      DVFS (PERF 240MHz/B8, BAL 160MHz/B6, ECO 80MHz/B4); and
- *                      parses async serial commands, so MODE/BATT changes can
- *                      land MID-INFERENCE (budget shrink aborts the running
- *                      inference at the next cooperative checkpoint).
+ *                      mailbox; samples battery with internal resistance droop
+ *                      compensation; applies DVFS energy-context policy
+ *                      (PERF 240MHz/B8, BAL 160MHz/B6, ECO 80MHz/B4); and
+ *                      parses async serial commands. Mid-inference budget shrink
+ *                      or battery droop triggers a cooperative abort checkpoint.
  *
  * Serial protocol (115200 baud, newline-terminated ASCII):
- *   INFER <text>                -> one JSON telemetry line
- *   MODE PERF|BAL|ECO|AUTO      (AUTO derives profile from battery level)
+ *   CHAT <text>                 -> conversational RLM response with reasoning
+ *   INFER <text>                -> raw JSON telemetry line
+ *   MODE PERF|BAL|ECO|AUTO      (AUTO derives profile from compensated battery)
  *   BATT <millivolts>|AUTO      (AUTO: GPIO34 100k/100k divider x2)
  *   BENCH <n>                   -> n self-timing runs of a fixed review
  *   STAT                        -> heap/freq/board state
  *   PING                        -> {"pong":1,...}
- *
- * The engine (src/rlm_engine.cpp) is host-compilable C++ and passes
- * golden-vector parity vs the PyTorch int8 mirror (see firmware/test/).
- * Weights: src/rlm_weights.h (int8, flash-resident .rodata).
  */
 #include <Arduino.h>
 #include "src/rlm_engine.h"
@@ -42,9 +38,12 @@ static volatile uint8_t  g_budget    = RLM_MAX_RECURSION;
 static volatile uint32_t g_abort     = 0;
 
 static volatile bool     g_batt_auto = false;
-static float             g_batt_mv   = 4000.0f;
+static float             g_batt_mv   = 4000.0f; /* Open-circuit voltage (OCV) */
 static const char*       g_batt_src  = "sim";
-static const int         BATT_ADC_PIN = 34;      /* 100k/100k divider */
+static const int         BATT_ADC_PIN = 34;     /* 100k/100k divider */
+
+/* Battery internal resistance droop compensation (R_int = 200 mOhm) */
+static const float BATT_R_INT = 0.200f;
 
 static SemaphoreHandle_t g_serial_mtx;
 
@@ -89,7 +88,13 @@ static RlmGateProvider FW_PROVIDER = {
     fw_prime, fw_launch, fw_wait_gate, fw_wait_shadow, fw_should_abort, nullptr
 };
 
-/* ---------------- battery policy (hardware adaptive gating) ------------ */
+/* ---------------- battery policy with droop compensation --------------- */
+static float compute_loaded_mv(float ocv_mv, uint32_t cpu_mhz) {
+    float i_ma = (cpu_mhz >= 240) ? 50.0f : ((cpu_mhz >= 160) ? 36.0f : 27.0f);
+    float droop_mv = (i_ma / 1000.0f) * BATT_R_INT * 1000.0f;
+    return ocv_mv - droop_mv;
+}
+
 static float read_batt_mv() {
     if (!g_batt_auto) return g_batt_mv;
     uint32_t mv = analogReadMilliVolts(BATT_ADC_PIN);
@@ -106,22 +111,31 @@ static void apply_profile(uint8_t prof) {
     setCpuFrequencyMhz(PROF_MHZ[prof]);
 }
 
-static uint8_t profile_for_batt(float mv) {
-    float pct = constrain((mv - 3300.0f) / 900.0f * 100.0f, 0.0f, 100.0f);
+static uint8_t profile_for_batt(float loaded_mv) {
+    float pct = constrain((loaded_mv - 3300.0f) / 900.0f * 100.0f, 0.0f, 100.0f);
     if (pct < 25.0f) return PROF_ECO;
     if (pct < 50.0f) return PROF_BAL;
     return PROF_PERF;
 }
 
 static void energy_tick() {                     /* runs on the arbiter core */
-    float mv = read_batt_mv();
-    g_batt_mv = mv;
-    if (g_auto_mode) apply_profile(profile_for_batt(mv));
+    float ocv = read_batt_mv();
+    g_batt_mv = ocv;
+    float loaded = compute_loaded_mv(ocv, PROF_MHZ[g_profile]);
+
+    /* Brownout protection: if loaded voltage approaches cutoff within 50mV */
+    if (loaded < 3350.0f) {
+        apply_profile(PROF_ECO);
+        g_abort = 1; // trigger early exit to prevent brownout
+    } else if (g_auto_mode) {
+        apply_profile(profile_for_batt(loaded));
+    }
 }
 
 /* ---------------- job mailbox (arbiter -> compute core) ---------------- */
 static char          g_req_text[512];
 static volatile int  g_req_infer = 0;           /* 1 pending inference       */
+static volatile int  g_req_chat  = 0;           /* 1 pending chat prompt     */
 static volatile int  g_req_bench = 0;           /* >0 pending bench runs     */
 static volatile bool g_req_stat  = false;
 
@@ -139,21 +153,62 @@ static void do_infer(const char* text) {
     RlmResult r;
     rlm_engine_infer(ids, n_real, g_budget, &FW_PROVIDER, &r);
     uint32_t us = micros() - t0;
+
+    float loaded = compute_loaded_mv(g_batt_mv, PROF_MHZ[g_profile]);
+    float droop = g_batt_mv - loaded;
+
     json_lock();
     Serial.printf("{\"pred\":%u,\"logits\":[%.4f,%.4f],\"steps\":%u,"
                   "\"depth\":%.4f,\"mass\":%.4f,\"hints\":%u,\"aborted\":%u,"
-                  "\"gates\":[", r.pred, r.logits[0], r.logits[1],
+                  "\"spec_hits\":%u,\"frozen\":%u,\"gates\":[",
+                  r.pred, r.logits[0], r.logits[1],
                   r.trace.steps, r.trace.depth, r.trace.halting_mass,
-                  r.trace.prearm_hints, r.trace.aborted);
+                  r.trace.prearm_hints, r.trace.aborted,
+                  r.trace.speculative_head_hits, r.trace.frozen_tokens);
     for (uint8_t i = 0; i < r.trace.steps; ++i)
         Serial.printf(i ? ",%.4f" : "%.4f", r.trace.gates[i]);
     Serial.print("],\"shadows\":[");
     for (uint8_t i = 0; i < r.trace.steps; ++i)
         Serial.printf(i ? ",%.4f" : "%.4f", r.trace.shadows[i]);
     Serial.printf("],\"us\":%lu,\"budget\":%u,\"profile\":\"%s\",\"batt_mv\":%.0f,"
-                  "\"heap\":%u}\n",
+                  "\"loaded_mv\":%.0f,\"droop_mv\":%.1f,\"heap\":%u}\n",
                   (unsigned long)us, g_budget, PROF_NAME[g_profile],
-                  (double)g_batt_mv, ESP.getFreeHeap());
+                  (double)g_batt_mv, (double)loaded, (double)droop, ESP.getFreeHeap());
+    json_unlock();
+}
+
+static void do_chat(const char* text) {
+    uint16_t ids[RLM_MAX_SEQ];
+    uint8_t n_real = rlm_tokenize(text, ids);
+    if (n_real == 0) {
+        json_lock();
+        Serial.println("{\"reply\":\"Please provide text for me to analyze.\"}");
+        json_unlock();
+        return;
+    }
+    g_abort = 0;
+    uint32_t t0 = micros();
+    RlmResult r;
+    rlm_engine_infer(ids, n_real, g_budget, &FW_PROVIDER, &r);
+    uint32_t us = micros() - t0;
+
+    float max_l = max(r.logits[0], r.logits[1]);
+    float e0 = expf(r.logits[0] - max_l);
+    float e1 = expf(r.logits[1] - max_l);
+    float conf = (r.pred == 1 ? e1 : e0) / (e0 + e1) * 100.0f;
+    const char* verdict = r.pred == 1 ? "POSITIVE" : "NEGATIVE";
+
+    json_lock();
+    Serial.printf("{\"chat_reply\":\"I evaluated your input: '%s'. "
+                  "Verdict: %s (Confidence: %.1f%%). "
+                  "Reasoned in %u recursive steps (Mass: %.3f/0.900), "
+                  "saving %u steps (%.0f%% compute reduction). Latency: %lu us.\","
+                  "\"pred\":%u,\"verdict\":\"%s\",\"confidence\":%.1f,"
+                  "\"steps\":%u,\"saved_steps\":%u,\"us\":%lu,\"profile\":\"%s\"}\n",
+                  text, verdict, conf, r.trace.steps, r.trace.halting_mass,
+                  (8 - r.trace.steps), (float)(8 - r.trace.steps) / 8.0f * 100.0f,
+                  (unsigned long)us, r.pred, verdict, conf, r.trace.steps,
+                  (8 - r.trace.steps), (unsigned long)us, PROF_NAME[g_profile]);
     json_unlock();
 }
 
@@ -185,14 +240,15 @@ static void do_bench(int n) {
 }
 
 static void do_stat() {
+    float loaded = compute_loaded_mv(g_batt_mv, PROF_MHZ[g_profile]);
     json_lock();
     Serial.printf("{\"board\":\"%s\",\"cpu_mhz\":%lu,\"budget\":%u,"
                   "\"profile\":\"%s\",\"auto_mode\":%s,\"batt_mv\":%.0f,"
-                  "\"batt_src\":\"%s\",\"heap\":%u,\"min_heap\":%u,"
-                  "\"sketch_kb\":%u,\"flash_mb\":%u}\n",
+                  "\"loaded_mv\":%.0f,\"batt_src\":\"%s\",\"heap\":%u,"
+                  "\"min_heap\":%u,\"sketch_kb\":%u,\"flash_mb\":%u}\n",
                   ARDUINO_VARIANT, (unsigned long)getCpuFrequencyMhz(), g_budget,
                   PROF_NAME[g_profile], g_auto_mode ? "true" : "false",
-                  (double)g_batt_mv, g_batt_src, ESP.getFreeHeap(),
+                  (double)g_batt_mv, (double)loaded, g_batt_src, ESP.getFreeHeap(),
                   ESP.getMinFreeHeap(), ESP.getSketchSize() / 1024,
                   ESP.getFlashChipSize() / (1024 * 1024));
     json_unlock();
@@ -201,8 +257,16 @@ static void do_stat() {
 /* ---------------- command handling (arbiter core) ---------------------- */
 static void handle_line(char* line) {
     json_lock();
-    if (!strncmp(line, "INFER ", 6)) {
-        if (g_req_infer) { Serial.println("{\"err\":\"busy\"}"); }
+    if (!strncmp(line, "CHAT ", 5)) {
+        if (g_req_infer || g_req_chat) { Serial.println("{\"err\":\"busy\"}"); }
+        else {
+            strncpy(g_req_text, line + 5, sizeof(g_req_text) - 1);
+            g_req_text[sizeof(g_req_text) - 1] = 0;
+            g_req_chat = 1;
+        }
+    }
+    else if (!strncmp(line, "INFER ", 6)) {
+        if (g_req_infer || g_req_chat) { Serial.println("{\"err\":\"busy\"}"); }
         else {
             strncpy(g_req_text, line + 6, sizeof(g_req_text) - 1);
             g_req_text[sizeof(g_req_text) - 1] = 0;
@@ -210,7 +274,7 @@ static void handle_line(char* line) {
         }
     }
     else if (!strncmp(line, "BENCH ", 6)) {
-        if (g_req_infer || g_req_bench) Serial.println("{\"err\":\"busy\"}");
+        if (g_req_infer || g_req_bench || g_req_chat) Serial.println("{\"err\":\"busy\"}");
         else g_req_bench = max(1, atoi(line + 6));
     }
     else if (!strcmp(line, "STAT"))             g_req_stat = true;
@@ -281,7 +345,6 @@ static void arbiter_loop(void*) {
 void setup() {
     Serial.begin(115200);
     while (!Serial && millis() < 3000) {}
-    /* analogReadMilliVolts() self-configures attenuation (core 2.x and 3.x) */
     g_serial_mtx = xSemaphoreCreateMutex();
 
     rlm_engine_init();
@@ -290,14 +353,15 @@ void setup() {
     xTaskCreatePinnedToCore(arbiter_loop, "aagm_arbiter", 6144, nullptr,
                             3, &g_arbiter_task, 0 /* PRO_CPU, beside Wi-Fi */);
 
-    Serial.printf(">RLM-AAGM fw=1 board=%s vocab=%u dim=%u max_rec=%u "
-                  "tau_lo=%.3f budget=%u\n", ARDUINO_VARIANT, RLM_VOCAB_ROWS,
+    Serial.printf(">RLM-AAGM fw=2 board=%s vocab=%u dim=%u max_rec=%u "
+                  "tau_lo=%.3f budget=%u chat=ready\n", ARDUINO_VARIANT, RLM_VOCAB_ROWS,
                   RLM_DIM, RLM_MAX_RECURSION, (double)RLM_TAU_LO, g_budget);
 }
 
 void loop() {                                      /* core 1 job dispatcher */
     if (g_req_infer) { do_infer(g_req_text); g_req_infer = 0; }
+    if (g_req_chat)  { do_chat(g_req_text);  g_req_chat  = 0; }
     if (g_req_bench > 0) { int n = g_req_bench; g_req_bench = 0; do_bench(n); }
-    if (g_req_stat) { g_req_stat = false; do_stat(); }
+    if (g_req_stat)  { g_req_stat = false;   do_stat(); }
     vTaskDelay(pdMS_TO_TICKS(5));
 }

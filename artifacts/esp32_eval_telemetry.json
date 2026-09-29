@@ -1,0 +1,320 @@
+{
+  "banner": ">RLM-AAGM fw=2 board=ESP32-DevKit-v1(HostSim) vocab=4096 dim=96 max_rec=8 tau_lo=0.347 budget=8 chat=ready",
+  "stat": {
+    "board": "ESP32-DevKit-v1(HostSim)",
+    "cpu_mhz": 240,
+    "budget": 8,
+    "profile": "PERF",
+    "auto_mode": false,
+    "batt_mv": 4000,
+    "loaded_mv": 3990,
+    "batt_src": "sim",
+    "heap": 284120,
+    "min_heap": 241088,
+    "sketch_kb": 510,
+    "flash_mb": 4
+  },
+  "records": [
+    {
+      "pred": 1,
+      "logits": [
+        -3.2411,
+        3.8404
+      ],
+      "steps": 2,
+      "depth": 0.9822,
+      "mass": 1.0178,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.6058,
+        0.3763
+      ],
+      "shadows": [
+        0.5466,
+        0.5589
+      ],
+      "us": 3435,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 1
+    },
+    {
+      "pred": 0,
+      "logits": [
+        5.6765,
+        -4.1563
+      ],
+      "steps": 2,
+      "depth": 1.0323,
+      "mass": 0.9677,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.5926,
+        0.4397
+      ],
+      "shadows": [
+        0.5821,
+        0.5729
+      ],
+      "us": 2852,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 0
+    },
+    {
+      "pred": 1,
+      "logits": [
+        -5.783,
+        7.0745
+      ],
+      "steps": 2,
+      "depth": 0.7232,
+      "mass": 1.2768,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.4537,
+        0.2695
+      ],
+      "shadows": [
+        0.4867,
+        0.6105
+      ],
+      "us": 3111,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 1
+    },
+    {
+      "pred": 0,
+      "logits": [
+        6.893,
+        -4.9237
+      ],
+      "steps": 2,
+      "depth": 0.9549,
+      "mass": 1.0451,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.5272,
+        0.4277
+      ],
+      "shadows": [
+        0.5081,
+        0.4672
+      ],
+      "us": 2834,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 0
+    },
+    {
+      "pred": 0,
+      "logits": [
+        6.8668,
+        -4.8884
+      ],
+      "steps": 2,
+      "depth": 0.9785,
+      "mass": 1.0215,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.5427,
+        0.4358
+      ],
+      "shadows": [
+        0.5134,
+        0.4495
+      ],
+      "us": 3993,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 1
+    },
+    {
+      "pred": 0,
+      "logits": [
+        6.364,
+        -4.5617
+      ],
+      "steps": 3,
+      "depth": 1.645,
+      "mass": 1.355,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.6941,
+        0.5187,
+        0.4322
+      ],
+      "shadows": [
+        0.4847,
+        0.5389,
+        0.4934
+      ],
+      "us": 4914,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 0
+    },
+    {
+      "pred": 0,
+      "logits": [
+        5.4013,
+        -3.8651
+      ],
+      "steps": 2,
+      "depth": 1.0929,
+      "mass": 0.9071,
+      "hints": 0,
+      "aborted": 0,
+      "spec_hits": 0,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 0,
+      "gates": [
+        0.6343,
+        0.4585
+      ],
+      "shadows": [
+        0.5455,
+        0.5081
+      ],
+      "us": 780,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 1
+    },
+    {
+      "pred": 0,
+      "logits": [
+        7.0649,
+        -4.9756
+      ],
+      "steps": 2,
+      "depth": 0.9847,
+      "mass": 1.0153,
+      "hints": 2,
+      "aborted": 0,
+      "spec_hits": 1,
+      "frozen": 0,
+      "macs_saved": 0,
+      "tail_us_saved": 152,
+      "gates": [
+        0.5534,
+        0.4314
+      ],
+      "shadows": [
+        0.3159,
+        0.2813
+      ],
+      "us": 271,
+      "budget": 8,
+      "profile": "PERF",
+      "batt_mv": 4000,
+      "loaded_mv": 3990,
+      "droop_mv": 10.0,
+      "cpu_mhz": 240,
+      "heap": 284120,
+      "expected": 0
+    }
+  ],
+  "mode_sweeps": {
+    "PERF": {
+      "bench_n": 5,
+      "us_avg": 4378.6,
+      "us_min": 4355,
+      "us_max": 4395,
+      "mean_steps": 2.0,
+      "budget": 8,
+      "cpu_mhz": 240,
+      "profile": "PERF",
+      "heap": 284120
+    },
+    "BAL": {
+      "bench_n": 5,
+      "us_avg": 4370.6,
+      "us_min": 4349,
+      "us_max": 4401,
+      "mean_steps": 2.0,
+      "budget": 6,
+      "cpu_mhz": 160,
+      "profile": "BAL",
+      "heap": 284120
+    },
+    "ECO": {
+      "bench_n": 5,
+      "us_avg": 4547.0,
+      "us_min": 4350,
+      "us_max": 5140,
+      "mean_steps": 2.0,
+      "budget": 4,
+      "cpu_mhz": 80,
+      "profile": "ECO",
+      "heap": 284120
+    }
+  }
+}

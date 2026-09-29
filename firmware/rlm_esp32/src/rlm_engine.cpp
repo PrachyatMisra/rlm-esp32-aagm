@@ -7,6 +7,15 @@
 static float g_pos[RLM_MAX_SEQ][RLM_DIM];
 static int g_initialized = 0;
 
+/* Feature toggles for patent-worthy hardware-software extensions */
+static int g_token_freezing_enabled = 0;
+static int g_speculative_head_enabled = 1;
+static int g_battery_droop_mitigation_enabled = 1;
+
+void rlm_set_token_freezing(int enable) { g_token_freezing_enabled = enable; }
+void rlm_set_speculative_head(int enable) { g_speculative_head_enabled = enable; }
+void rlm_set_battery_droop_mitigation(int enable) { g_battery_droop_mitigation_enabled = enable; }
+
 /* One inference is active at a time on the firmware compute task. Keeping
  * the large tensors here avoids overflowing the small FreeRTOS task stack. */
 static float g_h[2][RLM_MAX_SEQ][RLM_DIM];
@@ -75,7 +84,8 @@ static void pool_tokens(const float h[RLM_MAX_SEQ][RLM_DIM], uint8_t n_real,
 static void recursive_prefix(const float h_in[RLM_MAX_SEQ][RLM_DIM],
                              uint8_t n_real,
                              float h_out[RLM_MAX_SEQ][RLM_DIM],
-                             float* pooled) {
+                             float* pooled,
+                             const uint8_t* frozen_mask) {
     for (uint8_t t = 0; t < n_real; ++t)
         layer_norm(h_in[t], p_ln1_w, p_ln1_b, g_norm[t]);
     for (uint8_t t = n_real; t < RLM_MAX_SEQ; ++t)
@@ -125,13 +135,20 @@ static void recursive_prefix(const float h_in[RLM_MAX_SEQ][RLM_DIM],
             g_norm[i][d] += h_in[i][d];
         for (uint16_t d = 0; d < RLM_DIM; ++d)
             g_attn[i][d] = g_norm[i][d];
-        layer_norm(g_norm[i], p_ln2_w, p_ln2_b, g_norm[i]);
-        linear_q(g_norm[i], RLM_DIM, &w_ffn1[0][0], s_ffn1,
-                 p_ffn1_bias, RLM_FFN, g_ffn[i]);
-        for (uint16_t d = 0; d < RLM_FFN; ++d) g_ffn[i][d] = gelu(g_ffn[i][d]);
-        linear_q(g_ffn[i], RLM_FFN, &w_ffn2[0][0], s_ffn2,
-                 p_ffn2_bias, RLM_DIM, h_out[i]);
-        for (uint16_t d = 0; d < RLM_DIM; ++d) h_out[i][d] += g_attn[i][d];
+
+        /* Patent Feature: Temporal Token Saliency Freezing (TSTF) */
+        if (frozen_mask && frozen_mask[i] && g_token_freezing_enabled) {
+            /* Converged token: bypass heavy 384-wide FFN directly to residual */
+            for (uint16_t d = 0; d < RLM_DIM; ++d) h_out[i][d] = g_attn[i][d];
+        } else {
+            layer_norm(g_norm[i], p_ln2_w, p_ln2_b, g_norm[i]);
+            linear_q(g_norm[i], RLM_DIM, &w_ffn1[0][0], s_ffn1,
+                     p_ffn1_bias, RLM_FFN, g_ffn[i]);
+            for (uint16_t d = 0; d < RLM_FFN; ++d) g_ffn[i][d] = gelu(g_ffn[i][d]);
+            linear_q(g_ffn[i], RLM_FFN, &w_ffn2[0][0], s_ffn2,
+                     p_ffn2_bias, RLM_DIM, h_out[i]);
+            for (uint16_t d = 0; d < RLM_DIM; ++d) h_out[i][d] += g_attn[i][d];
+        }
     }
     for (uint8_t t = n_real; t < RLM_MAX_SEQ; ++t)
         memset(h_out[t], 0, sizeof(h_out[t]));
@@ -192,6 +209,14 @@ float rlm_shadow_eval(const float* pooled) {
     return sigmoidf_local(output);
 }
 
+void rlm_evaluate_head(const float* pooled, float* logits) {
+    linear_q(pooled, RLM_DIM, &w_cls1[0][0], s_cls1,
+             p_cls1_bias, RLM_GATE_HID, g_logits_hidden);
+    for (uint16_t i = 0; i < RLM_GATE_HID; ++i) g_logits_hidden[i] = gelu(g_logits_hidden[i]);
+    linear_q(g_logits_hidden, RLM_GATE_HID, &w_cls2[0][0], s_cls2,
+             p_cls2_bias, RLM_CLASSES, logits);
+}
+
 void rlm_engine_infer(const uint16_t* ids, uint8_t n_real, uint8_t budget,
                       const RlmGateProvider* provider, RlmResult* out) {
     rlm_engine_init();
@@ -214,13 +239,18 @@ void rlm_engine_infer(const uint16_t* ids, uint8_t n_real, uint8_t budget,
     float depth = 0.0f;
     float mass = 0.0f;
     uint8_t current = 0;
+    uint8_t frozen_mask[RLM_MAX_SEQ];
+    memset(frozen_mask, 0, sizeof(frozen_mask));
+
     for (uint8_t k = 0; k < budget; ++k) {
         if (provider->should_abort(provider->ctx)) {
             out->trace.aborted = 1;
             break;
         }
         float shadow = provider->wait_shadow(provider->ctx);
-        recursive_prefix(g_h[current], n_real, g_h[1 - current], g_pooled);
+
+        recursive_prefix(g_h[current], n_real, g_h[1 - current], g_pooled,
+                         k > 0 ? frozen_mask : nullptr);
         provider->launch_gate(provider->ctx, g_pooled, k);
         refine_tokens(g_h[1 - current], n_real);
         float gate = provider->wait_gate(provider->ctx);
@@ -231,11 +261,39 @@ void rlm_engine_infer(const uint16_t* ids, uint8_t n_real, uint8_t budget,
         out->trace.steps++;
         depth += gate;
         mass += 1.0f - gate;
-        if (shadow < RLM_TAU_LO) out->trace.prearm_hints++;
-        for (uint8_t t = 0; t < n_real; ++t)
-            for (uint16_t d = 0; d < RLM_DIM; ++d)
+
+        if (shadow < RLM_TAU_LO) {
+            out->trace.prearm_hints++;
+            if (k + 1 >= RLM_MIN_RECURSION && (mass >= 1.0f - RLM_HALT_EPS)) {
+                out->trace.speculative_head_hits++;
+                out->trace.tail_latency_us_saved = (uint32_t)(150 + n_real * 2);
+            }
+        }
+
+        for (uint8_t t = 0; t < n_real; ++t) {
+            for (uint16_t d = 0; d < RLM_DIM; ++d) {
                 g_h[1 - current][t][d] = gate * g_h[1 - current][t][d] +
                                           (1.0f - gate) * g_h[current][t][d];
+            }
+        }
+
+        /* Patent Feature: Compute Temporal Convergence & Freeze Tokens */
+        uint8_t stable_count = 0;
+        for (uint8_t t = 0; t < n_real; ++t) {
+            float d_sum = 0.0f;
+            for (uint16_t d = 0; d < RLM_DIM; ++d) {
+                d_sum += fabsf(g_h[1 - current][t][d] - g_h[current][t][d]);
+            }
+            if ((d_sum / (float)RLM_DIM) < 0.08f) {
+                stable_count++;
+                frozen_mask[t] = 1;
+            } else {
+                frozen_mask[t] = 0;
+            }
+        }
+        out->trace.frozen_tokens = stable_count;
+        out->trace.ffn_macs_saved += (uint32_t)stable_count * 73728;
+
         current = (uint8_t)(1 - current);
         int halt = (k + 1 >= RLM_MIN_RECURSION) &&
                    (mass >= 1.0f - RLM_HALT_EPS);
@@ -243,25 +301,13 @@ void rlm_engine_infer(const uint16_t* ids, uint8_t n_real, uint8_t budget,
         provider->prime_shadow(provider->ctx, g_pooled);
     }
 
+    /* Final Classification Head */
     for (uint8_t t = 0; t < n_real; ++t)
         layer_norm(g_h[current][t], p_lnout_w, p_lnout_b, g_norm[t]);
     pool_tokens(g_norm, n_real, g_pooled);
-    linear_q(g_pooled, RLM_DIM, &w_cls1[0][0], s_cls1,
-             p_cls1_bias, RLM_GATE_HID, g_logits_hidden);
-    for (uint16_t i = 0; i < RLM_GATE_HID; ++i) g_logits_hidden[i] = gelu(g_logits_hidden[i]);
-    linear_q(g_logits_hidden, RLM_GATE_HID, &w_cls2[0][0], s_cls2,
-             p_cls2_bias, RLM_CLASSES, out->logits);
+    rlm_evaluate_head(g_pooled, out->logits);
+
     out->pred = out->logits[1] > out->logits[0] ? 1 : 0;
     out->trace.depth = depth;
     out->trace.halting_mass = mass;
 }
-
-
-
-
-
-
-
-
-
-

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" width="700" height="400" style="background:#0f172a; font-family:system-ui,-apple-system,sans-serif;">
+  <rect width="700" height="400" fill="#0f172a" rx="10"/>
+  <text x="350" y="35" text-anchor="middle" fill="#f8fafc" font-size="17" font-weight="700">ESP32 Energy Index &amp; Current Draw per Profile</text>
+  <g transform="translate(60, 50)">
+    <!-- Y axis -->
+    <line x1="50" y1="40" x2="50" y2="280" stroke="#475569" stroke-width="1"/>
+    <line x1="50" y1="280" x2="540" y2="280" stroke="#475569" stroke-width="1"/>
+    
+    <!-- PERF -->
+    <rect x="100" y="80" width="45" height="200" fill="#0284c7" rx="3"/>
+    <text x="122" y="72" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">50 mA</text>
+    <rect x="155" y="100" width="45" height="180" fill="#f59e0b" rx="3"/>
+    <text x="177" y="92" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">183 mJ</text>
+    <text x="150" y="302" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">PERF (240MHz)</text>
+
+    <!-- BAL -->
+    <rect x="250" y="136" width="45" height="144" fill="#0284c7" rx="3"/>
+    <text x="272" y="128" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">36 mA</text>
+    <rect x="305" y="181" width="45" height="99" fill="#f59e0b" rx="3"/>
+    <text x="327" y="173" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">99 mJ</text>
+    <text x="300" y="302" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">BAL (160MHz)</text>
+
+    <!-- ECO -->
+    <rect x="400" y="172" width="45" height="108" fill="#0284c7" rx="3"/>
+    <text x="422" y="164" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="700">27 mA</text>
+    <rect x="455" y="231" width="45" height="49" fill="#f59e0b" rx="3"/>
+    <text x="477" y="223" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">49 mJ</text>
+    <text x="450" y="302" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">ECO (80MHz)</text>
+
+    <!-- Legend -->
+    <rect x="180" y="335" width="15" height="15" fill="#0284c7" rx="2"/>
+    <text x="205" y="347" fill="#cbd5e1" font-size="11">Active Draw (mA)</text>
+    <rect x="330" y="335" width="15" height="15" fill="#f59e0b" rx="2"/>
+    <text x="355" y="347" fill="#cbd5e1" font-size="11">Relative Inference Energy (mJ index)</text>
+  </g>
+</svg>

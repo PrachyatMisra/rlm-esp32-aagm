@@ -29,7 +29,7 @@ get the same firmware with optional SIMD upside. `platformio.ini` ships both env
 
 - **TFLite Micro** is the portable runtime with ESP32-S3-optimised kernels written
   with Google, handling conv/dense/pool/activations/quant ops with a static tensor
-  arena and no dynamic allocation
+  buffer allocation and no dynamic heap allocation
   [4](https://zbotic.in/esp32-edge-ai-run-tensorflow-lite-micro-on-microcontroller/)
   [5](https://gizantech.com/blog/edge-ai-tinyml-on-esp32-on-device-machine-learning).
 - **ESP-DL** is Espressif's own SIMD-tuned library, strongest for vision kernels on
