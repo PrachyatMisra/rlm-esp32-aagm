@@ -41,19 +41,29 @@ module tb_aagm_gate;
         async_abort = 0; halting_mass_q15 = 16'd30000;
         check_outputs(0, 0);
 
+        $display("[TIME %0tps] AAGM Gate Test 1: step_valid=0 -> halt=0, abort=0", $time);
         step_valid = 1; min_steps_reached = 0;
         check_outputs(0, 0);
+
+        $display("[TIME %0tps] AAGM Gate Test 2: min_steps=0 -> halt=0, abort=0", $time);
         min_steps_reached = 1; halting_mass_q15 = 16'd29490;
         check_outputs(0, 0);
+
+        $display("[TIME %0tps] AAGM Gate Test 3: mass=29490 (<29491) -> halt=0", $time);
         halting_mass_q15 = 16'd29491;
         check_outputs(1, 0);
+
+        $display("[TIME %0tps] AAGM Gate Test 4: mass=29491 (>=TH) -> halt=1 (HALT ASSERTED)", $time);
         budget_exhausted = 1;
         check_outputs(0, 0);
+
+        $display("[TIME %0tps] AAGM Gate Test 5: budget_exhausted=1 -> halt=0", $time);
         budget_exhausted = 0; async_abort = 1;
         check_outputs(1, 1);
+        $display("[TIME %0tps] AAGM Gate Test 6: async_abort=1 -> halt=1, abort=1", $time);
 
-        if (failures == 0) $display("AAGM_VERILOG_PASS");
-        else $display("AAGM_VERILOG_FAIL count=%0d", failures);
+        if (failures == 0) $display(">>> AAGM_VERILOG_PASS (Gate logic verified)");
+        else $display(">>> AAGM_VERILOG_FAIL count=%0d", failures);
         if (failures != 0) $fatal(1, "AAGM Verilog checks failed");
         $finish;
     end

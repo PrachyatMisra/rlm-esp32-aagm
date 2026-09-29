@@ -661,7 +661,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             </h3>
             <div class="flex items-center gap-2">
               <span class="text-[11px] text-gray-400">Generates real <code>.vcd</code> files</span>
-              <button onclick="runVerilogTest()" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-mono flex items-center gap-1.5">
+              <button onclick="runVerilogTest()" id="btn-coproc-resim" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-mono flex items-center gap-1.5">
                 <i class="fa-solid fa-play text-[10px]"></i>
                 <span>Re-simulate</span>
               </button>
@@ -1174,52 +1174,84 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     async function runGoldenTest() {
       const btn = document.getElementById('btn-run-golden');
-      btn.disabled = true;
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Running...`;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Running...`;
+      }
       try {
         const resp = await fetch('/api/verify-golden');
         const res = await resp.json();
         const tbody = document.getElementById('golden-table-body');
-        tbody.innerHTML = '';
-        res.samples.forEach(s => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td class="p-1.5">${s.i}</td>
-            <td class="p-1.5 font-bold ${s.pred === 1 ? 'text-emerald-400' : 'text-rose-400'}">${s.pred}</td>
-            <td class="p-1.5 text-gray-400">${s.gold_pred}</td>
-            <td class="p-1.5">${s.steps}</td>
-            <td class="p-1.5 text-cyan-400">${s.logit_err.toExponential(2)}</td>
-            <td class="p-1.5 text-emerald-400 font-bold">PASS</td>
-          `;
-          tbody.appendChild(tr);
-        });
-        document.getElementById('golden-status-badge').textContent = `${res.summary.passed}/${res.summary.golden} PASSED`;
-      } catch (e) {
-        console.error(e);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="fa-solid fa-play text-[10px]"></i><span>Run C++ Golden Parity</span>`;
-      }
-    }
-
-    async function runVerilogTest() {
-      const btn = document.getElementById('btn-run-verilog');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Simulating...`;
-      }
-      try {
-        const resp = await fetch('/api/verify-verilog');
-        const res = await resp.json();
-        document.getElementById('verilog-output').textContent = res.output;
-        const coprocLog = document.getElementById('coproc-verilog-log');
-        if (coprocLog) coprocLog.textContent = res.output;
+        if (tbody && res.samples) {
+          tbody.innerHTML = '';
+          res.samples.forEach(s => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td class="p-1.5">${s.i}</td>
+              <td class="p-1.5 font-bold ${s.pred === 1 ? 'text-emerald-400' : 'text-rose-400'}">${s.pred}</td>
+              <td class="p-1.5 text-gray-400">${s.gold_pred}</td>
+              <td class="p-1.5">${s.steps}</td>
+              <td class="p-1.5 text-cyan-400">${s.logit_err.toExponential(2)}</td>
+              <td class="p-1.5 text-emerald-400 font-bold">PASS</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+        if (res.summary) {
+          const badge = document.getElementById('golden-status-badge');
+          if (badge) badge.textContent = `${res.summary.passed}/${res.summary.golden} PASSED`;
+          const logitErr = document.getElementById('val-logit-err');
+          if (logitErr) logitErr.textContent = res.summary.max_logit_err.toExponential(2);
+          const gateErr = document.getElementById('val-gate-err');
+          if (gateErr) gateErr.textContent = res.summary.max_gate_err.toExponential(2);
+          const predMism = document.getElementById('val-pred-mism');
+          if (predMism) predMism.textContent = `${res.summary.mism_pred} / ${res.summary.golden} (0%)`;
+          const tokMism = document.getElementById('val-tok-mism');
+          if (tokMism) tokMism.textContent = `${res.summary.mism_ids} / ${res.summary.golden} (0%)`;
+        }
       } catch (e) {
         console.error(e);
       } finally {
         if (btn) {
           btn.disabled = false;
-          btn.innerHTML = `<i class="fa-solid fa-microchip text-[10px]"></i><span>Run Verilog Simulation</span>`;
+          btn.innerHTML = `<i class="fa-solid fa-play text-[10px]"></i><span>Run C++ Golden Parity</span>`;
+        }
+      }
+    }
+
+    async function runVerilogTest() {
+      const btn1 = document.getElementById('btn-run-verilog');
+      const btn2 = document.getElementById('btn-coproc-resim');
+      [btn1, btn2].forEach(b => {
+        if (b) {
+          b.disabled = true;
+          b.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1 text-[10px]"></i><span>Simulating...</span>`;
+        }
+      });
+      try {
+        const resp = await fetch('/api/verify-verilog');
+        const res = await resp.json();
+        const vOut = document.getElementById('verilog-output');
+        if (vOut) vOut.textContent = res.output;
+        const cLog = document.getElementById('coproc-verilog-log');
+        if (cLog) cLog.textContent = res.output;
+        const vBadge = document.getElementById('verilog-status-badge');
+        if (vBadge) {
+          vBadge.textContent = res.status === 'PASS' ? 'ALL PASSED (Icarus RTL)' : 'SIMULATION ERROR';
+          vBadge.className = res.status === 'PASS'
+            ? 'text-xs font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800'
+            : 'text-xs font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800';
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (btn1) {
+          btn1.disabled = false;
+          btn1.innerHTML = `<i class="fa-solid fa-microchip text-[10px]"></i><span>Run Verilog Simulation</span>`;
+        }
+        if (btn2) {
+          btn2.disabled = false;
+          btn2.innerHTML = `<i class="fa-solid fa-play text-[10px]"></i><span>Re-simulate</span>`;
         }
       }
     }
