@@ -55,6 +55,8 @@
     .message.user .message-text { color:#d6e0ef; }
     .message-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:10px; }
     .meta-pill { border:1px solid #28313e; background:#121720; color:#98a4b5; border-radius:999px; font-size:9px; padding:3px 7px; }
+    .meta-pill.warning { border-color:#634825; background:#241c12; color:#f0c078; }
+    .chat-warning { margin-top:8px; border:1px solid #553e20; background:#1e170f; color:#f4d092; border-radius:8px; padding:7px 10px; font-size:11px; line-height:1.4; }
     .analysis { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
     .analysis-item { border:1px solid #254039; background:#11211e; border-radius:8px; padding:6px 9px; min-width:84px; }
     .analysis-item b { display:block; color:#def8ee; font-size:12px; }
@@ -211,13 +213,19 @@
         body.className = 'message-text';
         appendFormattedText(body, text);
         content.append(author, body);
+        if (options.warning) {
+          const warnBox = document.createElement('div');
+          warnBox.className = 'chat-warning';
+          warnBox.textContent = `⚠ ${options.warning}`;
+          content.appendChild(warnBox);
+        }
         if (options.analysis) renderAnalysis(content, options.analysis);
         if (options.sources?.length) renderSources(content, options.sources);
         if (options.engine) {
           const meta = document.createElement('div');
           meta.className = 'message-meta';
           const pill = document.createElement('span');
-          pill.className = 'meta-pill';
+          pill.className = options.warning ? 'meta-pill warning' : 'meta-pill';
           pill.textContent = options.engine;
           meta.appendChild(pill);
           content.appendChild(meta);
@@ -299,7 +307,7 @@
           if (!response.ok) throw new Error(result.error || `Server returned ${response.status}`);
           $('typing')?.remove();
           addMessage('assistant', result.reply || 'No response was returned.', {
-            analysis:result.analysis, sources:result.sources, engine:result.engine
+            analysis:result.analysis, sources:result.sources, engine:result.engine, warning:result.warning
           });
           history.push({role:'assistant',content:result.reply || ''});
         } catch (error) {
@@ -331,9 +339,14 @@
       fetch('/api/assistant/status').then(response=>response.json()).then(data=>{
         const badge = $('backend-status');
         badge.classList.remove('waiting');
-        if (data.backend === 'local') badge.classList.add('local');
+        if (data.backend === 'local' || !data.ollama_online || !data.model_installed) {
+          badge.classList.add('local');
+        } else {
+          badge.classList.remove('local');
+        }
         badge.querySelector('span').textContent = data.label || 'Local project assistant';
-        badge.title = `Model: ${data.model || 'none'} · Sentiment: ${data.sentiment_engine}`;
+        const modelNote = data.model_installed ? `Installed: ${data.model}` : `Target: ${data.model} (not detected)`;
+        badge.title = `Backend: ${data.backend} · ${modelNote} · Sentiment: ${data.sentiment_engine}`;
       }).catch(()=>{
         const badge = $('backend-status'); badge.classList.remove('waiting'); badge.classList.add('local');
         badge.querySelector('span').textContent='Offline project mode';

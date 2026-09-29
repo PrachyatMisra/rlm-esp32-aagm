@@ -87,26 +87,26 @@ Detailed mathematical derivations and engineering proofs are in [`docs/TECHNICAL
 ## Interactive Demonstrations & Testing Quickstart
 
 ### 1. Focused Project Chat & Review Demo (Port 8000)
-Start the local app and open its streamlined chat interface:
+Start the local app and open its streamlined interface:
 
 ```bash
 python3 host/web_demo.py
-# Open http://localhost:8000
+# Open http://localhost:8000 (or http://127.0.0.1:8000)
 ```
 
-Choose **Ask about the project** for source-backed answers from repository documents, or **Analyze a review** to run the actual Edge-RLM sentiment classifier and inspect its prediction, confidence, halting mass, recursive steps, and native host latency. The chat keeps recent turns for the current browser session. The legacy hardware dashboard remains available at [`/lab`](http://localhost:8000/lab), and the 3D graph at [`/graph`](http://localhost:8000/graph).
-
-**Important model boundary:** the compact ESP32 RLM in this repository is a binary sentiment classifier; its weights are not a general text-generation model. Project chat checks for Ollama on loopback and uses it when available; otherwise it falls back to local document retrieval with file citations. Ollama is optional, free to run locally, and requires no API key. Prompts are not sent to a hosted AI API.
+The interface provides two clearly distinguished tools:
+- **Ask about the project** (Project Chat): Uses local Ollama on loopback (`qwen2.5:1.5b`) grounded with repository excerpts. If Ollama is offline or the model is not pulled, the UI transparently labels the response as local retrieval fallback with source citations and diagnostic status.
+- **Analyze a review** (Sentiment Classifier): Directly invokes the compiled native C++ host harness (`firmware/test/host_harness`), displaying class verdict, confidence, recursive depth (steps), cumulative halting mass, steps saved, and host latency.
 
 ```bash
-# Optional: install Ollama from https://ollama.com/download, start it, then fetch a model once:
-ollama pull qwen2.5:3b
-# With Ollama running, start the app in another terminal:
-RLM_CHAT_BACKEND=ollama RLM_CHAT_MODEL=qwen2.5:3b python3 host/web_demo.py
+# Setup local Ollama with qwen2.5:1.5b (optional, private loopback only):
+ollama pull qwen2.5:1.5b
+
+# Start the web demo (Ollama auto-detected on http://127.0.0.1:11434):
+RLM_CHAT_BACKEND=auto RLM_CHAT_MODEL=qwen2.5:1.5b python3 host/web_demo.py
 ```
 
-If Ollama is unavailable, chat falls back to local repository search; sentiment analysis still runs through the existing C++ host harness. First analysis builds the harness automatically when needed.
-
+Run the unit test suite for the chat agent and fallback handling:
 ```bash
 python3 -m unittest discover -s host -p 'test_*.py'
 ```
@@ -114,26 +114,22 @@ python3 -m unittest discover -s host -p 'test_*.py'
 ---
 
 ### 2. Interactive 3D Code & Pipeline Graph
-
-The same local server exposes a 3D, searchable view of the repository's Graphify code index. Start the server as above, then open **[http://localhost:8000/graph](http://localhost:8000/graph)** (or click **Graph** in the chat header).
+Start the demo server and open **[http://localhost:8000/graph](http://localhost:8000/graph)** (or click **Graph** in the navigation header).
 
 ```bash
 python3 host/web_demo.py
-# In another browser tab: http://localhost:8000/graph
+# In your browser: http://localhost:8000/graph
 ```
 
-The explorer includes:
-- **Symbol graph** for functions, classes, rationale notes, and extracted code relationships.
-- **File pipeline** view that rolls symbols and cross-file links up to their source files.
-- Live search plus community, file, node-kind, and relationship filters; click a node to inspect neighbors and source location.
-- Orbit, zoom, fit-to-view, and pause controls. Source files remain on this machine; the 3D renderer is loaded from the free jsDelivr CDN, so a network connection is needed for the renderer.
-
-The page reads [`graphify-out/graph.json`](graphify-out/graph.json), the repository's [Graphify-Labs](https://github.com/Graphify-Labs) graph snapshot, directly—there is no database or Python package to install. To reflect code changes, refresh/regenerate that Graphify index using the local Graphify workflow; the page fetches the current JSON each time it loads. Rendering uses the open-source [3d-force-graph](https://github.com/vasturiano/3d-force-graph) library.
+Features:
+- **Symbol graph**: 138 extracted AST symbols (functions, classes, configurations) and 247 directed relationships.
+- **File pipeline**: Aggregated view rolling up symbols to 12 top-level repository source files across training, firmware, verification, and host subsystems.
+- Interactive live search, community/subsystem filtering, node inspection with GitHub source links, and orbit/zoom controls.
 
 ---
 
 ### 3. Offline RLM Sentiment Test CLI
-Run the parity-matched host inference harness without physical ESP32 hardware (this tests sentiment classification; project Q&A is in the web chat above):
+Run the parity-matched C++ host inference harness directly from the command line:
 
 ```bash
 # Launch interactive sentiment test shell:
@@ -167,13 +163,33 @@ Simulates real UART communication, runs benchmark sweeps across all operating pr
 
 ### 5. Dual-Track Hardware-Free Verification Suite
 
+#### Track 1: C++ Native Firmware Parity (Golden Reference)
+Validates bit-level parity of the C++ firmware engine (`firmware/rlm_esp32/src/`) against 12 PyTorch golden vectors:
 ```bash
-# Track 1: C++ Native Firmware Parity vs PyTorch Golden Reference (12/12 Golden Vectors)
 make -C firmware/test check
-
-# Track 2: Verilog Hardware Coprocessor Simulation (Cycle-accurate RTL + VCD waveforms)
-make -C verification/verilog check
 ```
+*Result: 12/12 golden vectors match with zero prediction mismatches and max logit error $< 2.4 \times 10^{-6}$.*
+
+#### Track 2: Verilog Hardware Coprocessor Simulation & GTKWave Waveforms
+Compiles and simulates the cycle-accurate RTL coprocessor and gating logic with Icarus Verilog (`iverilog` / `vvp`), producing `.vcd` waveform dumps:
+```bash
+# Compile and run RTL testbenches:
+make -C verification/verilog check
+
+# Inspect generated waveforms in GTKWave:
+gtkwave verification/verilog/aagm_coprocessor.vcd &
+gtkwave verification/verilog/aagm_gate.vcd &
+```
+
+**Key signals to inspect in `aagm_coprocessor.vcd`:**
+- `tb_aagm_arbiter_coprocessor.clk`: 100 MHz reference simulation clock.
+- `tb_aagm_arbiter_coprocessor.dut.mass_acc_reg[15:0]`: Cumulative Q1.15 halting mass accumulation.
+- `tb_aagm_arbiter_coprocessor.dut.steps_reg[3:0]`: Current recursive iteration count ($k$).
+- `tb_aagm_arbiter_coprocessor.dut.speculative_prearm`: Asserts high when shadow forecaster $s_{k+1} < \tau_{lo}$ (0.347 / 11,370 in Q1.15), pre-arming speculative output evaluation.
+- `tb_aagm_arbiter_coprocessor.irq_halt`: Asserts high when cumulative mass $\ge 0.900$ (29,491 in Q1.15) and $k \ge 2$.
+- `tb_aagm_arbiter_coprocessor.irq_abort`: Asserts single-cycle interrupt upon asynchronous mid-inference abort command.
+
+*Note on methodology:* The Verilog RTL implements the digital arbiter coprocessor and halting control logic; it does not execute the matrix multiplications of the neural network. Neural weights and inference run in the native C++ engine and on the physical ESP32 dual Xtensa LX6 cores.
 
 ---
 

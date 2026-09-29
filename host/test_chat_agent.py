@@ -1,6 +1,7 @@
 """Focused tests for local retrieval and the Edge-RLM chat adapter."""
 
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -18,15 +19,15 @@ class ChatAgentTests(unittest.TestCase):
         self.assertTrue(all(item["path"] and item["line"] > 0 for item in matches))
 
     def test_project_question_uses_local_retrieval_when_ollama_disabled(self):
-        with patch.object(chat_agent, "CHAT_BACKEND", "local"):
+        with patch.dict(os.environ, {"RLM_CHAT_BACKEND": "local"}):
             result = chat_agent.respond("How does recursive halting work?", mode="chat")
         self.assertEqual(result["kind"], "chat")
         self.assertTrue(result["sources"])
         self.assertEqual(result["sources"][0]["path"], "docs/PROJECT_REVIEW_REPORT.md")
-        self.assertIn("project files", result["reply"].lower())
+        self.assertIn("project documentation", result["reply"].lower())
 
     def test_ollama_is_restricted_to_loopback(self):
-        with patch.object(chat_agent, "OLLAMA_HOST", "http://example.com:11434"):
+        with patch.dict(os.environ, {"OLLAMA_HOST": "http://example.com:11434"}):
             with self.assertRaises(ValueError):
                 chat_agent._ollama_reply("hello", [], [])
 
@@ -42,13 +43,24 @@ class ChatAgentTests(unittest.TestCase):
                 return b'{"message":{"content":"The local model answer."}}'
 
         history = [{"role": "user", "content": "Explain AAGM."}]
-        with patch.object(chat_agent, "CHAT_BACKEND", "ollama"):
+        with patch.dict(os.environ, {"RLM_CHAT_BACKEND": "ollama", "RLM_CHAT_MODEL": "qwen2.5:1.5b"}):
             with patch.object(chat_agent.urllib.request, "urlopen", return_value=FakeResponse()) as request:
                 result = chat_agent.respond("And how does halting fit?", history=history, mode="chat")
         self.assertEqual(result["reply"], "The local model answer.")
-        self.assertIn("Ollama", result["engine"])
+        self.assertIn("Ollama · qwen2.5:1.5b", result["engine"])
         payload = json.loads(request.call_args.args[0].data)
+        self.assertEqual(payload["model"], "qwen2.5:1.5b")
         self.assertIn("Explain AAGM.", [message["content"] for message in payload["messages"]])
+
+    def test_ollama_failure_returns_fallback_with_diagnostic_warning(self):
+        with patch.dict(os.environ, {"RLM_CHAT_BACKEND": "auto", "RLM_CHAT_MODEL": "qwen2.5:1.5b"}):
+            with patch.object(chat_agent.urllib.request, "urlopen", side_effect=OSError("Connection refused")):
+                result = chat_agent.respond("How does recursive halting work?", mode="chat")
+        self.assertEqual(result["kind"], "chat")
+        self.assertEqual(result["engine"], "Repository search · local fallback")
+        self.assertTrue(result.get("warning"))
+        self.assertIn("Connection refused", result["warning"])
+        self.assertTrue(result["sources"])
 
     def test_sentiment_mode_uses_inference_callback(self):
         calls = []
@@ -72,7 +84,7 @@ class ChatAgentTests(unittest.TestCase):
         self.assertEqual(calls, [("A sharp, charming film.", 8, "PERF", 4000.0)])
 
     def test_unknown_mode_falls_back_to_project_chat(self):
-        with patch.object(chat_agent, "CHAT_BACKEND", "local"):
+        with patch.dict(os.environ, {"RLM_CHAT_BACKEND": "local"}):
             result = chat_agent.respond("Tell me about the tokenizer.", mode="unexpected")
         self.assertEqual(result["kind"], "chat")
         self.assertTrue(result["sources"])
@@ -80,3 +92,4 @@ class ChatAgentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

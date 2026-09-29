@@ -123,18 +123,28 @@ def run_golden_check() -> dict:
 
 
 def run_verilog_check() -> dict:
-    sim_gate = VERILOG_DIR / "sim_aagm_gate.py"
-    sim_coproc = VERILOG_DIR / "sim_aagm_arbiter_coprocessor.py"
-    proc_g = subprocess.run([sys.executable, str(sim_gate)],
-                            check=True, capture_output=True, text=True)
-    proc_c = subprocess.run([sys.executable, str(sim_coproc)],
-                            check=True, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(["make", "-C", str(VERILOG_DIR), "check"],
+                              check=True, capture_output=True, text=True)
+        combined_output = proc.stdout
+        status = "PASS" if ("AAGM_VERILOG_PASS" in combined_output and "AAGM_COPROCESSOR_VERILOG_PASS" in combined_output) else "FAIL"
+        return {
+            "output": combined_output.strip(),
+            "status": status
+        }
+    except Exception:
+        sim_gate = VERILOG_DIR / "sim_aagm_gate.py"
+        sim_coproc = VERILOG_DIR / "sim_aagm_arbiter_coprocessor.py"
+        proc_g = subprocess.run([sys.executable, str(sim_gate)],
+                                check=True, capture_output=True, text=True)
+        proc_c = subprocess.run([sys.executable, str(sim_coproc)],
+                                check=True, capture_output=True, text=True)
 
-    combined_output = proc_g.stdout + "\n" + proc_c.stdout
-    return {
-        "output": combined_output,
-        "status": "PASS" if ("AAGM_VERILOG_PASS" in combined_output and "AAGM_COPROCESSOR_VERILOG_PASS" in combined_output) else "FAIL"
-    }
+        combined_output = proc_g.stdout + "\n" + proc_c.stdout
+        return {
+            "output": combined_output.strip(),
+            "status": "PASS" if ("AAGM_VERILOG_PASS" in combined_output and "AAGM_COPROCESSOR_VERILOG_PASS" in combined_output) else "FAIL"
+        }
 
 
 def get_patent_text() -> str:

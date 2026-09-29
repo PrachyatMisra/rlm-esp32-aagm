@@ -34,6 +34,8 @@ module tb_aagm_gate;
     endtask
 
     initial begin
+        $dumpfile("aagm_gate.vcd");
+        $dumpvars(0, tb_aagm_gate);
         failures = 0;
         step_valid = 0; min_steps_reached = 1; budget_exhausted = 0;
         async_abort = 0; halting_mass_q15 = 16'd30000;

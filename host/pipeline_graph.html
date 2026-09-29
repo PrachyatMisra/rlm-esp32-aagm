@@ -419,8 +419,23 @@
           const response = await fetch('/api/graph', {cache:'no-store'});
           if (!response.ok) throw new Error(`Graph API returned HTTP ${response.status}`);
           const payload = await response.json();
-          raw = payload.graph || payload;
-          if (!Array.isArray(raw.nodes) || !Array.isArray(raw.links)) throw new Error('Graph data has an unexpected format.');
+          
+          let nodes = [];
+          let links = [];
+          if (payload && Array.isArray(payload.nodes)) {
+            nodes = payload.nodes;
+            links = Array.isArray(payload.links) ? payload.links : (Array.isArray(payload.edges) ? payload.edges : []);
+          } else if (payload && payload.graph && Array.isArray(payload.graph.nodes)) {
+            nodes = payload.graph.nodes;
+            links = Array.isArray(payload.graph.links) ? payload.graph.links : (Array.isArray(payload.graph.edges) ? payload.graph.edges : []);
+          } else if (payload && payload.elements) {
+            nodes = Array.isArray(payload.elements.nodes) ? payload.elements.nodes.map(n => n.data || n) : [];
+            links = Array.isArray(payload.elements.edges) ? payload.elements.edges.map(e => e.data || e) : [];
+          }
+
+          if (!nodes.length) throw new Error('Graph dataset does not contain valid node records.');
+          raw = { nodes, links };
+
           symbolById = new Map(raw.nodes.map(node=>[node.id,node]));
           const degrees = new Map();
           raw.links.forEach(link=>{
@@ -440,7 +455,7 @@
           resetFiltersForMode();
           setTimeout(fitGraph,650);
         } catch (error) {
-          $('loading').innerHTML=`<div class="loading-card"><b>Could not load the project graph</b><span>${esc(error.message)}<br><br>Start the demo server from the repository root and open <code>/graph</code>. If the 3D library could not load, allow access to jsDelivr and reload.</span></div>`;
+          $('loading').innerHTML=`<div class="loading-card"><b>Could not load the project graph</b><span>${esc(error.message)}<br><br>Ensure <code>graphify-out/graph.json</code> is accessible and <code>host/web_demo.py</code> is running.</span></div>`;
         }
       }
 

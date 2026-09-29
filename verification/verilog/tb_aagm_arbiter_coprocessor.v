@@ -55,6 +55,8 @@ module tb_aagm_arbiter_coprocessor;
     endtask
 
     initial begin
+        $dumpfile("aagm_coprocessor.vcd");
+        $dumpvars(0, tb_aagm_arbiter_coprocessor);
         failures = 0;
         clk = 0;
         rst_n = 0;

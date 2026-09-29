@@ -20,15 +20,13 @@ from typing import Callable
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
-MODEL_NAME = os.environ.get("RLM_CHAT_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b"
-CHAT_BACKEND = os.environ.get("RLM_CHAT_BACKEND", "auto").strip().lower()
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 
 SOURCE_FILES = (
     "README.md",
     "docs/RESEARCH.md",
     "docs/TECHNICAL_BOTTLENECK_RESOLUTION.md",
     "docs/PROJECT_REVIEW_REPORT.md",
+    "docs/PATENT_SPECIFICATION.md",
     "verification/README.md",
     "tools/aagm.py",
     "tools/train_export.py",
@@ -44,7 +42,7 @@ that the their them then there these they this those to was we were what when wh
 which who why will with would you your about after again also any because before
 between both each few further get got here how its more most no not only other out
 over same some such than too under up very via without yes tell show describe explain
-summarize summary please information details part parts run runs
+summarize summary please information details part parts run runs table contents section
 """.split())
 WORD_RE = re.compile(r"[a-z0-9]+(?:[_+.-][a-z0-9]+)*", re.I)
 QUESTION_START = re.compile(
@@ -56,12 +54,45 @@ QUESTION_START = re.compile(
 PROJECT_TERMS = {
     "aagm", "esp32", "rlm", "repository", "repo", "pipeline", "architecture",
     "firmware", "quantization", "tokenizer", "training", "dataset", "sram",
-    "flash", "gate", "recursive", "recursion", "halting", "freeRTOS", "xtensa",
+    "flash", "gate", "recursive", "recursion", "halting", "freertos", "xtensa",
+    "coprocessor", "verilog", "shadow", "speculative", "prearm",
 }
+
+
+def get_config() -> dict:
+    model_name = os.environ.get("RLM_CHAT_MODEL", "qwen2.5:1.5b").strip() or "qwen2.5:1.5b"
+    chat_backend = os.environ.get("RLM_CHAT_BACKEND", "auto").strip().lower()
+    if chat_backend not in {"auto", "ollama", "local"}:
+        chat_backend = "auto"
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+    return {
+        "model": model_name,
+        "backend": chat_backend,
+        "host": ollama_host,
+    }
+
+
+# For backward compatibility with modules importing globals
+MODEL_NAME = get_config()["model"]
+CHAT_BACKEND = get_config()["backend"]
+OLLAMA_HOST = get_config()["host"]
 
 
 def _tokens(text: str) -> list[str]:
     return [word.lower() for word in WORD_RE.findall(text)]
+
+
+def _is_toc_or_boilerplate(line: str) -> bool:
+    """Detect table of contents links, repetitive nav lines, or raw link lists."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    # Link lists like "- [Section Name](#section-name)" or "1. [Title](#title)"
+    if re.match(r"^[-*0-9.]+\s*\[[^\]]+\]\(#[^\)]+\)", stripped):
+        return True
+    if re.match(r"^#+\s*(Table of Contents|Contents|Index)\b", stripped, re.I):
+        return True
+    return False
 
 
 def _split_document(path: str) -> list[dict]:
@@ -75,23 +106,29 @@ def _split_document(path: str) -> list[dict]:
     buffer: list[str] = []
     start_line = 1
     char_count = 0
-    skip_quickstart = False
+    skip_section = False
     for line_number, line in enumerate(lines, 1):
-        if path == "README.md" and line.startswith("## "):
-            skip_quickstart = line.strip() == "## Interactive Demonstrations & Testing Quickstart"
-        if skip_quickstart:
-            continue
         stripped = line.strip()
+        if path == "README.md" and stripped.startswith("## "):
+            skip_section = stripped in {
+                "## Interactive Demonstrations & Testing Quickstart",
+                "## Table of Contents",
+            }
+        if skip_section:
+            continue
+
+        if _is_toc_or_boilerplate(line):
+            continue
+
         if not stripped:
-            if buffer and char_count >= 300:
+            if buffer and char_count >= 250:
                 chunks.append((start_line, "\n".join(buffer).strip()))
                 buffer, char_count = [], 0
             continue
         if line.startswith("#") and buffer:
             chunks.append((start_line, "\n".join(buffer).strip()))
             buffer, char_count = [], 0
-        # Markdown prose and generated tables often occupy a single long line.
-        # Split before ranking so terms from distant topics cannot bleed together.
+
         parts = textwrap.wrap(line, width=820, break_long_words=False, break_on_hyphens=False) if len(line) > 900 else [line]
         for part in parts:
             if not buffer:
@@ -108,6 +145,10 @@ def _split_document(path: str) -> list[dict]:
     for line_number, text in chunks:
         words = _tokens(text)
         if len(words) < 6:
+            continue
+        # Filter chunks that are purely markdown link lists or headings
+        non_link_words = [w for w in words if w not in STOPWORDS]
+        if len(non_link_words) < 3:
             continue
         result.append({
             "path": path,
@@ -159,8 +200,6 @@ def retrieve(query: str, limit: int = 3) -> list[dict]:
     chosen = []
     seen_files = set()
     for score, chunk in scored:
-        # Prefer varied source files but still permit multiple closely related
-        # passages when one document is clearly the best match.
         if chunk["path"] in seen_files and len(chosen) < 2 and len(scored) > 2:
             continue
         chosen.append({
@@ -192,6 +231,14 @@ def _is_project_question(text: str) -> bool:
     return bool(words & PROJECT_TERMS)
 
 
+def _validate_loopback_host(host: str) -> str:
+    parsed = urlparse(host)
+    hostname = (parsed.hostname or "").lower()
+    if parsed.scheme != "http" or hostname not in {"127.0.0.1", "localhost", "::1"} or parsed.username or parsed.password:
+        raise ValueError(f"OLLAMA_HOST ('{host}') must point to a local loopback HTTP server (127.0.0.1 or localhost)")
+    return host
+
+
 def _local_project_answer(text: str, history: list[dict]) -> tuple[str, list[dict]]:
     history_context = " ".join(
         item.get("content", "")[-350:]
@@ -201,10 +248,9 @@ def _local_project_answer(text: str, history: list[dict]) -> tuple[str, list[dic
     matches = retrieve(f"{history_context} {text}", limit=3)
     if not matches or matches[0]["score"] < 0.22:
         return (
-            "I couldn't find a solid match for that in the checked-in project notes. "
-            "Try asking about the model architecture, recursive halting, training/export, "
-            "int8 quantization, firmware, or verification. For open-ended local chat, "
-            "you can optionally enable Ollama (see the README).",
+            "I couldn't find a direct match for that in the checked-in project documentation. "
+            "You can ask about the Edge-RLM architecture, recursive halting, training and int8 quantization, "
+            "ESP32 firmware/SRAM constraints, or Verilog coprocessor verification.",
             [],
         )
     sections = []
@@ -213,22 +259,21 @@ def _local_project_answer(text: str, history: list[dict]) -> tuple[str, list[dic
         if len(excerpt) > 600:
             excerpt = excerpt[:597].rsplit(" ", 1)[0] + "…"
         sections.append(excerpt)
-    answer = "From the project files:\n\n" + "\n\n---\n\n".join(sections)
+    answer = "From the project documentation:\n\n" + "\n\n---\n\n".join(sections)
     return answer, matches[:2]
 
 
-def _ollama_reply(text: str, history: list[dict], sources: list[dict]) -> str:
+def _ollama_reply(text: str, history: list[dict], sources: list[dict], host: str | None = None, model: str | None = None) -> str:
     """Use a loopback-only Ollama server; never send prompts to a hosted API."""
-    host = OLLAMA_HOST
-    parsed_host = urlparse(host)
-    if (parsed_host.scheme != "http" or parsed_host.hostname not in {"127.0.0.1", "localhost", "::1"}
-            or parsed_host.username or parsed_host.password):
-        raise ValueError("OLLAMA_HOST must point to a local Ollama server")
+    cfg = get_config()
+    target_host = _validate_loopback_host(host or cfg["host"])
+    target_model = (model or cfg["model"]).strip()
+
     context = "\n\n".join(
         f"[{item['path']}:{item['line']}]\n{item['text']}" for item in sources
     ) or "No matching repository excerpts were found."
     system = (
-        "You are the Edge-RLM repository assistant. Answer clearly and concisely. "
+        "You are the Edge-RLM repository technical assistant. Answer clearly and concisely. "
         "Use the supplied repository excerpts for claims about this project. If the "
         "excerpts do not establish an answer, say what is unknown. Do not claim that "
         "the ESP32 binary model is a general text generator: the bundled model performs "
@@ -244,34 +289,76 @@ def _ollama_reply(text: str, history: list[dict], sources: list[dict]) -> str:
             messages.append({"role": role, "content": content[:1200]})
     messages.append({"role": "user", "content": text[:1200]})
     payload = json.dumps({
-        "model": MODEL_NAME,
+        "model": target_model,
         "messages": messages,
         "stream": False,
-        "options": {"temperature": 0.25, "num_ctx": 8192},
+        "options": {"temperature": 0.25, "num_ctx": 4096},
     }).encode("utf-8")
     request = urllib.request.Request(
-        f"{host}/api/chat", data=payload,
+        f"{target_host}/api/chat", data=payload,
         headers={"Content-Type": "application/json"}, method="POST",
     )
     with urllib.request.urlopen(request, timeout=120) as response:
         result = json.loads(response.read().decode("utf-8"))
     content = result.get("message", {}).get("content", "").strip()
     if not content:
-        raise RuntimeError("The local model returned an empty answer")
+        raise RuntimeError(f"Local Ollama model '{target_model}' returned an empty response")
     return content
 
 
+def check_ollama_liveness(host: str | None = None, model: str | None = None) -> dict:
+    """Check if local Ollama daemon is active and if the configured model is installed."""
+    cfg = get_config()
+    target_host = host or cfg["host"]
+    target_model = model or cfg["model"]
+    try:
+        _validate_loopback_host(target_host)
+        req = urllib.request.Request(f"{target_host}/api/tags", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        models = [m.get("name", "") for m in data.get("models", [])]
+        # Check direct match or tag match (e.g., qwen2.5:1.5b vs qwen2.5:1.5b-instruct or qwen2.5:latest)
+        model_found = any(target_model == m or m.startswith(f"{target_model}:") or target_model.startswith(m.split(":")[0]) for m in models)
+        return {
+            "online": True,
+            "models": models,
+            "target_model_installed": model_found,
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "online": False,
+            "models": [],
+            "target_model_installed": False,
+            "error": str(exc),
+        }
+
+
 def status() -> dict:
-    backend = CHAT_BACKEND if CHAT_BACKEND in {"auto", "ollama", "local"} else "auto"
-    labels = {
-        "auto": "Loopback Ollama if available · docs fallback",
-        "ollama": "Local Ollama · docs fallback",
-        "local": "Repository search · local",
-    }
+    cfg = get_config()
+    backend = cfg["backend"]
+    model = cfg["model"]
+    host = cfg["host"]
+    probe = check_ollama_liveness(host, model)
+
+    if backend == "local":
+        label = "Repository search · local docs"
+    elif probe["online"]:
+        if probe["target_model_installed"]:
+            label = f"Ollama · {model} (local)"
+        else:
+            label = f"Ollama online · '{model}' not pulled (docs fallback)"
+    else:
+        label = f"Local retrieval · Ollama offline (docs fallback)"
+
     return {
         "backend": backend,
-        "model": MODEL_NAME,
-        "label": labels[backend],
+        "model": model,
+        "host": host,
+        "label": label,
+        "ollama_online": probe["online"],
+        "model_installed": probe["target_model_installed"],
+        "ollama_error": probe["error"],
         "sentiment_engine": "native Edge-RLM C++ host harness",
     }
 
@@ -332,14 +419,30 @@ def respond(
             "engine": "Edge-RLM · native C++ host inference",
         }
 
-    configured = CHAT_BACKEND if CHAT_BACKEND in {"auto", "ollama", "local"} else "auto"
+    cfg = get_config()
+    configured_backend = cfg["backend"]
+    model_name = cfg["model"]
+    host = cfg["host"]
+
     if _is_smalltalk(text):
-        if configured in {"auto", "ollama"}:
+        if configured_backend in {"auto", "ollama"}:
             try:
-                answer = _ollama_reply(text, history, [])
-                return {"reply": answer, "kind": "chat", "sources": [], "engine": f"Ollama · {MODEL_NAME} (local)"}
-            except (OSError, urllib.error.URLError, TimeoutError, ValueError, RuntimeError, json.JSONDecodeError):
-                pass
+                answer = _ollama_reply(text, history, [], host=host, model=model_name)
+                return {"reply": answer, "kind": "chat", "sources": [], "engine": f"Ollama · {model_name} (local)"}
+            except Exception as err:
+                if configured_backend == "ollama":
+                    error_msg = f"Ollama error ({err})."
+                    return {
+                        "reply": (
+                            f"Could not contact local Ollama model '{model_name}' at {host} ({err}).\n\n"
+                            "Hi! I can answer questions about the Edge-RLM architecture and code, or switch to "
+                            "**Analyze a review** to test the native C++ classifier."
+                        ),
+                        "kind": "chat",
+                        "sources": [],
+                        "engine": "Repository search · local fallback",
+                        "warning": error_msg,
+                    }
         return {
             "reply": (
                 "Hi! I can answer questions from this repository, or switch to **Analyze a review** "
@@ -357,14 +460,24 @@ def respond(
         if item.get("role") == "user"
     )
     sources = retrieve(f"{prior_user_context} {text}", limit=3)
-    if configured in {"auto", "ollama"}:
+    ollama_error = None
+
+    if configured_backend in {"auto", "ollama"}:
         try:
-            answer = _ollama_reply(text, history, sources)
-            engine = f"Ollama · {MODEL_NAME} (local)"
-        except (OSError, urllib.error.URLError, TimeoutError, ValueError, RuntimeError, json.JSONDecodeError):
-            answer, sources = _local_project_answer(text, history)
-            engine = "Repository search · local fallback"
-    else:
-        answer, sources = _local_project_answer(text, history)
-        engine = "Repository search · local"
-    return {"reply": answer, "kind": "chat", "sources": sources, "engine": engine}
+            answer = _ollama_reply(text, history, sources, host=host, model=model_name)
+            return {"reply": answer, "kind": "chat", "sources": sources, "engine": f"Ollama · {model_name} (local)"}
+        except Exception as err:
+            ollama_error = str(err)
+            answer, fallback_sources = _local_project_answer(text, history)
+            warning = f"Local Ollama '{model_name}' at {host} unavailable ({err}). Provided checked-in documentation matches."
+            return {
+                "reply": answer,
+                "kind": "chat",
+                "sources": fallback_sources or sources,
+                "engine": "Repository search · local fallback",
+                "warning": warning,
+            }
+
+    answer, sources = _local_project_answer(text, history)
+    return {"reply": answer, "kind": "chat", "sources": sources, "engine": "Repository search · local"}
+
