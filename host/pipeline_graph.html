@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d18">
+  <title>Edge-RLM · 3D Pipeline Graph</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080d18;
+      --panel: #0e1625;
+      --panel-2: #111c2d;
+      --line: #1d2b40;
+      --muted: #8ea0b9;
+      --text: #e8f0fb;
+      --cyan: #53d8e8;
+      --green: #77e0bc;
+      --amber: #ffc777;
+      --red: #ff9292;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input, select { font: inherit; }
+    button, select { color: var(--text); }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .topbar { height: 68px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 0 25px; background: #0b1220; gap: 18px; }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 210px; }
+    .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: linear-gradient(140deg,#1f9cae,#19517a); color: white; font-weight: 800; box-shadow: 0 5px 22px #20c3d122; }
+    .brand-title { font-weight: 750; letter-spacing: .01em; }
+    .brand-sub { color: var(--muted); font-size: 11px; }
+    .top-actions { display: flex; align-items: center; gap: 9px; }
+    .pill, .button { border: 1px solid var(--line); border-radius: 9px; background: #111c2c; padding: 8px 11px; color: #cbd8e9; }
+    .button { cursor: pointer; transition: border-color .15s, background .15s; }
+    .button:hover { border-color: #3c607d; background: #15263a; }
+    .status-pill { border: 1px solid #1d564e; border-radius: 999px; padding: 5px 9px; color: var(--green); font-size: 11px; white-space: nowrap; }
+    .status-dot { display: inline-block; background: var(--green); width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; box-shadow: 0 0 8px #77e0bc88; }
+    .page-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding: 23px 26px 18px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 700; color: var(--cyan); }
+    h1 { margin: 5px 0 4px; font-size: clamp(21px, 2.2vw, 29px); letter-spacing: -.035em; }
+    .lede { margin: 0; color: var(--muted); max-width: 680px; font-size: 13px; }
+    .metrics { display: flex; gap: 9px; }
+    .metric { min-width: 82px; padding: 9px 12px; border: 1px solid var(--line); background: #0e1726; border-radius: 10px; }
+    .metric b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+    .metric span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .workspace { display: grid; grid-template-columns: 325px minmax(0,1fr); gap: 13px; padding: 0 18px 18px; height: calc(100vh - 157px); min-height: 530px; }
+    .sidebar, .graph-panel { border: 1px solid var(--line); border-radius: 13px; background: var(--panel); overflow: hidden; min-height: 0; }
+    .sidebar { display: flex; flex-direction: column; }
+    .sidebar-top { padding: 14px; border-bottom: 1px solid var(--line); }
+    .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; border: 1px solid var(--line); background: #09111d; border-radius: 10px; padding: 4px; margin-bottom: 12px; }
+    .mode-button { border: 0; background: transparent; color: var(--muted); padding: 8px 5px; border-radius: 7px; cursor: pointer; font-size: 12px; }
+    .mode-button.active { color: var(--text); background: #1b3448; box-shadow: inset 0 0 0 1px #31516a; }
+    .search-wrap { position: relative; }
+    .search-wrap:before { content: "⌕"; position: absolute; left: 11px; top: 6px; font-size: 22px; color: #71849e; }
+    .search { width: 100%; border: 1px solid #26364c; background: #09111d; color: var(--text); padding: 10px 11px 10px 34px; outline: 0; border-radius: 8px; }
+    .search:focus, select:focus { border-color: #39829b; box-shadow: 0 0 0 2px #39a2b31c; }
+    .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 10px; }
+    .filter label { display: block; color: var(--muted); font-size: 10px; margin: 0 0 4px 2px; }
+    select { width: 100%; padding: 8px 7px; border: 1px solid #26364c; border-radius: 8px; background: #09111d; font-size: 11px; outline: 0; }
+    .list-head { padding: 11px 14px 7px; display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .node-list { overflow: auto; padding: 0 7px 9px; }
+    .node-row { width: 100%; display: flex; text-align: left; gap: 9px; padding: 9px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; color: var(--text); }
+    .node-row:hover, .node-row.selected { background: #15243a; border-color: #233c53; }
+    .node-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; box-shadow: 0 0 10px currentColor; }
+    .node-copy { min-width: 0; }
+    .node-name { display: block; font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .node-path { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .empty { color: var(--muted); padding: 18px 12px; text-align: center; font-size: 12px; }
+    .sidebar-bottom { margin-top: auto; border-top: 1px solid var(--line); padding: 10px 13px; color: var(--muted); font-size: 10px; display: flex; justify-content: space-between; gap: 10px; }
+    .graph-panel { position: relative; background: radial-gradient(ellipse at 50% 44%, #142236 0%, #0a1220 54%, #080e19 100%); }
+    #graph { position: absolute; inset: 0; }
+    .graph-toolbar { position: absolute; z-index: 2; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; pointer-events: none; }
+    .graph-toolbar > * { pointer-events: auto; }
+    .view-label { background: #0a1321d9; backdrop-filter: blur(8px); border: 1px solid #24354a; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #d4dfef; }
+    .graph-tools { display: flex; gap: 6px; }
+    .graph-tools .button { background: #0a1321e8; padding: 7px 9px; font-size: 11px; }
+    .legend { position: absolute; z-index: 2; left: 13px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px 12px; max-width: 70%; padding: 8px 10px; background: #09111ddd; border: 1px solid #26364c; border-radius: 9px; backdrop-filter: blur(8px); }
+    .legend-item { display: flex; align-items: center; gap: 5px; color: #aebdd1; font-size: 10px; }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .hint { position: absolute; right: 14px; bottom: 14px; color: #74869d; font-size: 10px; text-align: right; pointer-events: none; }
+    .detail { position: absolute; z-index: 3; right: 13px; top: 56px; width: min(295px, calc(100% - 26px)); max-height: calc(100% - 120px); overflow: auto; border: 1px solid #29405a; background: #0a1422ed; border-radius: 11px; padding: 13px; box-shadow: 0 12px 35px #0007; backdrop-filter: blur(12px); display: none; }
+    .detail.open { display: block; }
+    .detail-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+    .detail h2 { font-size: 14px; margin: 0 0 5px; overflow-wrap: anywhere; }
+    .detail-close { border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 18px; padding: 0 2px; }
+    .detail-path { color: var(--cyan); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; overflow-wrap: anywhere; }
+    .detail-stats { display: flex; gap: 7px; margin: 11px 0; }
+    .detail-stat { background: #101f30; border: 1px solid #20344a; border-radius: 7px; padding: 6px 8px; color: #b9c8da; font-size: 10px; }
+    .detail-label { margin: 12px 0 5px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
+    .neighbor-list { display: grid; gap: 4px; }
+    .neighbor { width: 100%; text-align: left; background: #111f30; border: 1px solid #1c3147; border-radius: 6px; color: #c9d7e8; font-size: 10px; padding: 6px 8px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .neighbor:hover { border-color: #3f708e; }
+    .source-link { display: inline-block; margin-top: 8px; font-size: 10px; }
+    .loading { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; color: #b5c7da; text-align: center; background: #09111ddc; }
+    .loading-card { width: min(360px, 85%); border: 1px solid #243850; border-radius: 13px; background: #101a29; padding: 20px; }
+    .loading-card b { display: block; margin-bottom: 5px; }
+    .loading-card span { color: var(--muted); font-size: 12px; }
+    .spinner { width: 22px; height: 22px; border: 2px solid #32465d; border-top-color: var(--cyan); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (max-width: 800px) {
+      .topbar { height: auto; min-height: 62px; padding: 10px 13px; }
+      .brand-sub, .status-pill { display: none; }
+      .page-head { padding: 16px 14px 12px; align-items: start; }
+      .metrics { gap: 5px; }
+      .metric { min-width: 58px; padding: 7px; }
+      .metric b { font-size: 14px; }
+      .metric span { font-size: 8px; }
+      .workspace { display: flex; flex-direction: column-reverse; padding: 0 9px 9px; height: calc(100vh - 168px); min-height: 590px; }
+      .graph-panel { flex: 1; min-height: 300px; }
+      .sidebar { height: 230px; flex: 0 0 230px; }
+      .node-list { display: grid; grid-template-columns: 1fr 1fr; }
+      .sidebar-bottom { display: none; }
+      .legend { max-width: calc(100% - 26px); bottom: 8px; }
+      .hint { display: none; }
+    }
+    @media (max-width: 480px) {
+      .top-actions .button { padding: 7px; font-size: 11px; }
+      .page-head { display: block; }
+      .metrics { margin-top: 11px; }
+      .metric { flex: 1; }
+      .workspace { height: calc(100vh - 220px); }
+      .node-list { grid-template-columns: 1fr; }
+      .sidebar { height: 205px; flex-basis: 205px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Back to Edge-RLM demo">
+      <span class="brand-mark">ER</span>
+      <span><span class="brand-title">Edge-RLM <span style="color:#53d8e8">/</span> AAGM</span><span class="brand-sub" style="display:block">ESP32 architecture explorer</span></span>
+    </a>
+    <div class="top-actions">
+      <span class="status-pill"><span class="status-dot"></span>LOCAL GRAPH INDEX</span>
+      <a class="button" href="/" title="Return to the inference studio">← Demo studio</a>
+      <button class="button" id="refresh" title="Reload the graph index">↻ Refresh</button>
+    </div>
+  </header>
+
+  <section class="page-head">
+    <div>
+      <div class="eyebrow">Repository map · 3D explorer</div>
+      <h1>Follow the Edge-RLM pipeline</h1>
+      <p class="lede">Explore code symbols and their relationships, or roll them up into a file-level flow. Search the local graph, filter by subsystem, then select any node to inspect its connections.</p>
+    </div>
+    <div class="metrics" aria-label="Graph summary">
+      <div class="metric"><b id="node-count">—</b><span>Symbols</span></div>
+      <div class="metric"><b id="edge-count">—</b><span>Relations</span></div>
+      <div class="metric"><b id="file-count">—</b><span>Files</span></div>
+    </div>
+  </section>
+
+  <main class="workspace">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="mode-switch" role="tablist" aria-label="Graph view">
+          <button class="mode-button active" id="symbols-mode" role="tab" aria-selected="true">Symbol graph</button>
+          <button class="mode-button" id="files-mode" role="tab" aria-selected="false">File pipeline</button>
+        </div>
+        <div class="search-wrap"><input id="search" class="search" type="search" placeholder="Search symbols, files, relations…" autocomplete="off"></div>
+        <div class="filters">
+          <div class="filter"><label for="community">Community</label><select id="community"><option value="all">All communities</option></select></div>
+          <div class="filter"><label for="file">Source file</label><select id="file"><option value="all">All source files</option></select></div>
+          <div class="filter"><label for="kind">Node type</label><select id="kind"><option value="all">All types</option><option value="code">Code</option><option value="rationale">Rationale</option></select></div>
+          <div class="filter"><label for="relation">Relation</label><select id="relation"><option value="all">All relations</option></select></div>
+        </div>
+      </div>
+      <div class="list-head"><span id="list-title">Graph nodes</span><span id="result-count">0</span></div>
+      <div class="node-list" id="node-list"><div class="empty">Loading graph index…</div></div>
+      <div class="sidebar-bottom"><span>Graphify code relationships</span><span id="graph-version">graphify-out/graph.json</span></div>
+    </aside>
+
+    <section class="graph-panel" aria-label="Interactive 3D architecture graph">
+      <div id="graph"></div>
+      <div class="graph-toolbar">
+        <div class="view-label" id="view-label">Symbol-level relationships</div>
+        <div class="graph-tools">
+          <button class="button" id="fit" title="Fit all visible nodes">Fit view</button>
+          <button class="button" id="toggle-motion" title="Pause or resume graph motion">Pause</button>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="hint">Drag to orbit · scroll to zoom<br>Click a node to inspect connections</div>
+      <aside class="detail" id="detail" aria-live="polite"></aside>
+      <div class="loading" id="loading"><div class="loading-card"><div class="spinner"></div><b>Loading the local project graph</b><span>Fetching Graphify node and relationship data…</span></div></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.77.0/dist/3d-force-graph.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/3d-force-graph@1.77.0/dist/3d-force-graph.min.js'"></script>
+  <script>
+    (() => {
+      const palette = ['#53d8e8','#a991ff','#ffbd72','#7be0ad','#ff7c9c','#79aaff','#e9df77','#ee91dd'];
+      const pipelineColors = {training:'#53d8e8', firmware:'#7be0ad', verification:'#ffbd72', host:'#a991ff', other:'#91a0b4'};
+      const relationColors = {calls:'#5bd9e6', contains:'#7287a4', references:'#a991ff', method:'#ffbd72', rationale_for:'#7be0ad', imports:'#ff8ba2', imports_from:'#ff8ba2', uses:'#7cb5ff', defines:'#e4d579', inherits:'#ee91dd'};
+      const $ = (id) => document.getElementById(id);
+      const graphHost = $('graph');
+      let raw = null;
+      let graph = null;
+      let mode = 'symbols';
+      let renderedNodes = [];
+      let renderedLinks = [];
+      let visibleNodes = [];
+      let visibleLinks = [];
+      let currentSelection = null;
+      let motionOn = true;
+      let symbolById = new Map();
+      let fileNodeByPath = new Map();
+      let fileLinks = [];
+      const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const colorForCommunity = (community) => palette[(Number(community) || 0) % palette.length];
+      const basename = (path) => path ? path.split('/').pop() : 'unattributed';
+      const pipelineGroup = (path) => {
+        if (!path) return 'other';
+        if (path.startsWith('tools/')) return 'training';
+        if (path.startsWith('firmware/')) return 'firmware';
+        if (path.startsWith('verification/')) return 'verification';
+        if (path.startsWith('host/')) return 'host';
+        return 'other';
+      };
+      const relationColor = (rel) => relationColors[rel] || '#8596ad';
+      const getNodeColor = (node) => mode === 'files' ? pipelineColors[node.pipelineGroup] || pipelineColors.other : colorForCommunity(node.community);
+      const getNodeLabel = (node) => {
+        const path = node.source_file || '';
+        const location = node.source_location ? ` · ${node.source_location}` : '';
+        const extra = mode === 'files' ? `${node.member_count} graph symbols` : `${node.file_type || 'code'}${location}`;
+        return `<div style="background:#0b1421;border:1px solid #29405a;border-radius:7px;padding:7px 9px;color:#e8f0fb"><b>${esc(node.label)}</b><br><span style="color:#9fb1c8">${esc(path || extra)}</span>${path ? `<br><span style="color:#7790aa">${esc(extra)}</span>` : ''}</div>`;
+      };
+
+      function makeFileGraph() {
+        const files = new Map();
+        raw.nodes.forEach(node => {
+          const path = node.source_file || '(unattributed)';
+          if (!files.has(path)) files.set(path, {id:`file:${path}`, label:basename(path), source_file:path === '(unattributed)' ? '' : path, file_type:'file', pipelineGroup:pipelineGroup(path), member_count:0, symbols:[], communityCounts:{}, degree:0});
+          const file = files.get(path);
+          file.member_count++;
+          file.symbols.push(node.label);
+          file.communityCounts[node.community] = (file.communityCounts[node.community] || 0) + 1;
+        });
+        const edges = new Map();
+        raw.links.forEach(link => {
+          const sourceNode = symbolById.get(typeof link.source === 'object' ? link.source.id : link.source);
+          const targetNode = symbolById.get(typeof link.target === 'object' ? link.target.id : link.target);
+          if (!sourceNode || !targetNode) return;
+          const sourcePath = sourceNode.source_file || '(unattributed)';
+          const targetPath = targetNode.source_file || '(unattributed)';
+          if (sourcePath === targetPath) return;
+          const source = files.get(sourcePath).id;
+          const target = files.get(targetPath).id;
+          const key = `${source}|||${target}|||${link.relation || 'related'}`;
+          if (!edges.has(key)) edges.set(key, {source,target,relation:link.relation || 'related',count:0});
+          edges.get(key).count++;
+        });
+        files.forEach(file => {
+          file.degree = [...edges.values()].reduce((sum, edge) => sum + ((edge.source === file.id || edge.target === file.id) ? edge.count : 0),0);
+          file.symbols.sort((a,b)=>a.localeCompare(b));
+        });
+        fileNodeByPath = files;
+        fileLinks = [...edges.values()];
+      }
+
+      function getData() {
+        if (mode === 'symbols') return {nodes:raw.nodes, links:raw.links};
+        return {nodes:[...fileNodeByPath.values()], links:fileLinks};
+      }
+
+      function resetSelects() {
+        const communities = [...new Set(raw.nodes.map(n => n.community).filter(v => v !== undefined && v !== null))].sort((a,b)=>Number(a)-Number(b));
+        $('community').innerHTML = '<option value="all">All communities</option>' + communities.map(c=>`<option value="${esc(c)}">Community ${esc(c)}</option>`).join('');
+        const files = [...new Set(raw.nodes.map(n=>n.source_file || '(unattributed)'))].sort();
+        $('file').innerHTML = '<option value="all">All source files</option>' + files.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('');
+        const relations = [...new Set(raw.links.map(l=>l.relation).filter(Boolean))].sort();
+        $('relation').innerHTML = '<option value="all">All relations</option>' + relations.map(r=>`<option value="${esc(r)}">${esc(r.replaceAll('_',' '))}</option>`).join('');
+      }
+
+      function initGraph() {
+        if (typeof ForceGraph3D !== 'function') throw new Error('The 3D graph library did not load. Check the network connection and reload.');
+        graph = ForceGraph3D()(graphHost)
+          .backgroundColor('rgba(0,0,0,0)')
+          .showNavInfo(false)
+          .nodeId('id')
+          .nodeLabel(getNodeLabel)
+          .nodeColor(getNodeColor)
+          .nodeVal(n => Math.max(2, Math.min(11, 2 + Math.sqrt(n.degree || n.member_count || 1))))
+          .nodeOpacity(0.92)
+          .linkColor(link => relationColor(link.relation))
+          .linkOpacity(0.5)
+          .linkWidth(link => Math.min(2.5, 0.45 + Math.log2((link.count || 1) + 1) * 0.45))
+          .linkDirectionalParticles(link => link.relation === 'calls' || mode === 'files' ? 1 : 0)
+          .linkDirectionalParticleWidth(1.6)
+          .linkDirectionalParticleSpeed(0.003)
+          .linkDirectionalParticleColor(link => relationColor(link.relation))
+          .onNodeClick(node => selectNode(node, true))
+          .onBackgroundClick(() => closeDetail());
+        graph.d3Force('charge').strength(-105);
+        graph.d3Force('link').distance(link => mode === 'files' ? 95 + Math.min(60, (link.count || 1) * 2) : 36);
+        graph.d3Force('center').strength(0.07);
+        window.addEventListener('resize', () => graph.width(graphHost.clientWidth).height(graphHost.clientHeight));
+      }
+
+      function filterData() {
+        const {nodes,links} = getData();
+        const q = $('search').value.trim().toLowerCase();
+        const community = $('community').value;
+        const file = $('file').value;
+        const kind = $('kind').value;
+        const relation = $('relation').value;
+        const nodeSet = new Set();
+        visibleNodes = nodes.filter(node => {
+          const isFile = mode === 'files';
+          const nodePath = isFile ? (node.source_file || '(unattributed)') : (node.source_file || '(unattributed)');
+          if (community !== 'all' && (isFile ? !node.communityCounts?.[community] : String(node.community) !== community)) return false;
+          if (file !== 'all' && nodePath !== file) return false;
+          if (kind !== 'all' && (isFile || node.file_type !== kind)) return false;
+          const text = `${node.label} ${node.source_file || ''} ${node.file_type || ''} ${node.symbols?.join(' ') || ''}`.toLowerCase();
+          if (q && !text.includes(q)) return false;
+          nodeSet.add(node.id);
+          return true;
+        });
+        visibleLinks = links.filter(link => {
+          if (!nodeSet.has(typeof link.source === 'object' ? link.source.id : link.source) || !nodeSet.has(typeof link.target === 'object' ? link.target.id : link.target)) return false;
+          if (relation !== 'all' && link.relation !== relation) return false;
+          return true;
+        });
+        renderedNodes = visibleNodes.map(n => ({...n}));
+        renderedLinks = visibleLinks.map(l => ({...l, source:typeof l.source === 'object' ? l.source.id : l.source, target:typeof l.target === 'object' ? l.target.id : l.target}));
+        graph.graphData({nodes:renderedNodes,links:renderedLinks});
+        $('result-count').textContent = visibleNodes.length;
+        $('list-title').textContent = mode === 'symbols' ? 'Graph nodes' : 'Pipeline files';
+        $('view-label').textContent = mode === 'symbols' ? 'Symbol-level relationships' : 'File-level pipeline relationships';
+        renderList();
+        renderLegend();
+        if (currentSelection && !visibleNodes.some(n=>n.id===currentSelection.id)) closeDetail();
+      }
+
+      function renderList() {
+        const list = $('node-list');
+        const limit = 100;
+        const items = visibleNodes.slice().sort((a,b)=>(b.degree||b.member_count||0)-(a.degree||a.member_count||0) || a.label.localeCompare(b.label)).slice(0,limit);
+        if (!items.length) {
+          list.innerHTML = '<div class="empty">No graph items match these filters.</div>';
+          return;
+        }
+        list.innerHTML = items.map(node => {
+          const subtitle = mode === 'files' ? `${node.member_count} symbols · ${node.degree} cross-file links` : `${node.source_file || 'Project rationale'}${node.source_location ? ` · ${node.source_location}` : ''}`;
+          const selected = currentSelection?.id === node.id ? ' selected' : '';
+          return `<button class="node-row${selected}" data-node="${esc(node.id)}"><span class="node-dot" style="color:${getNodeColor(node)};background:${getNodeColor(node)}"></span><span class="node-copy"><span class="node-name">${esc(node.label)}</span><span class="node-path">${esc(subtitle)}</span></span></button>`;
+        }).join('') + (visibleNodes.length > limit ? `<div class="empty">Showing first ${limit} of ${visibleNodes.length}. Narrow the search to see more.</div>` : '');
+        list.querySelectorAll('[data-node]').forEach(button => button.addEventListener('click',()=>{
+          const node = visibleNodes.find(n=>n.id===button.dataset.node);
+          if (node) selectNode(node,true);
+        }));
+      }
+
+      function renderLegend() {
+        const values = mode === 'symbols'
+          ? [...new Set(visibleNodes.map(n=>n.community).filter(v=>v!==undefined))].sort((a,b)=>Number(a)-Number(b)).map(c=>({label:`Community ${c}`,color:colorForCommunity(c)}))
+          : Object.entries(pipelineColors).filter(([key])=>visibleNodes.some(n=>n.pipelineGroup===key)).map(([key,color])=>({label:key[0].toUpperCase()+key.slice(1),color}));
+        $('legend').innerHTML = values.slice(0,10).map(v=>`<span class="legend-item"><i class="legend-dot" style="background:${v.color}"></i>${esc(v.label)}</span>`).join('') || '<span class="legend-item">No visible graph groups</span>';
+      }
+
+      function selectNode(node, flyTo) {
+        currentSelection = node;
+        renderList();
+        const {nodes,links} = getData();
+        const related = links.filter(link => {
+          const source = typeof link.source === 'object' ? link.source.id : link.source;
+          const target = typeof link.target === 'object' ? link.target.id : link.target;
+          return source === node.id || target === node.id;
+        }).slice(0, mode === 'files' ? 14 : 16).map(link => {
+          const source = typeof link.source === 'object' ? link.source.id : link.source;
+          const target = typeof link.target === 'object' ? link.target.id : link.target;
+          const otherId = source === node.id ? target : source;
+          const other = nodes.find(n=>n.id===otherId);
+          return other ? {node:other, relation:link.relation, direction:source===node.id?'out':'in', count:link.count} : null;
+        }).filter(Boolean);
+        const path = node.source_file || '';
+        const location = node.source_location && /^L\d+$/.test(node.source_location) ? `#${node.source_location}` : '';
+        const githubUrl = path ? `https://github.com/PrachyatMisra/rlm-esp32-aagm/blob/main/${path}${location}` : '';
+        const detail = $('detail');
+        detail.innerHTML = `<div class="detail-head"><div><h2>${esc(node.label)}</h2><div class="detail-path">${esc(path || 'Unattributed project note')}</div></div><button class="detail-close" aria-label="Close">×</button></div>
+          <div class="detail-stats"><span class="detail-stat">${mode==='files' ? `${node.member_count} symbols` : esc(node.file_type || 'code')}</span><span class="detail-stat">${mode==='files' ? `${node.degree} cross-file links` : `community ${esc(node.community ?? '—')}`}</span>${node.source_location ? `<span class="detail-stat">${esc(node.source_location)}</span>` : ''}</div>
+          ${node.description ? `<div style="color:#afbed0;font-size:11px">${esc(node.description)}</div>` : ''}
+          ${githubUrl ? `<a class="source-link" target="_blank" rel="noreferrer" href="${esc(githubUrl)}">Open source on GitHub ↗</a>` : ''}
+          <div class="detail-label">${mode==='files'?'Connected files':'Connected symbols'} · ${related.length}</div>
+          <div class="neighbor-list">${related.length ? related.map(item=>`<button class="neighbor" data-neighbor="${esc(item.node.id)}">${item.direction==='out'?'→':'←'} ${esc(item.relation)}${item.count ? ` ×${item.count}` : ''} · ${esc(item.node.label)}</button>`).join('') : '<span style="color:#8ea0b9;font-size:10px">No relationships match the current graph snapshot.</span>'}</div>`;
+        detail.classList.add('open');
+        detail.querySelector('.detail-close').addEventListener('click',closeDetail);
+        detail.querySelectorAll('[data-neighbor]').forEach(button=>button.addEventListener('click',()=>{
+          const next = visibleNodes.find(n=>n.id===button.dataset.neighbor) || getData().nodes.find(n=>n.id===button.dataset.neighbor);
+          if (next) selectNode(next,true);
+        }));
+        if (flyTo && node.x !== undefined) {
+          const distance = 85;
+          const length = Math.hypot(node.x,node.y,node.z) || 1;
+          graph.cameraPosition({x:node.x+distance*node.x/length,y:node.y+distance*node.y/length,z:node.z+distance*node.z/length},node,900);
+        }
+      }
+
+      function closeDetail() { currentSelection = null; $('detail').classList.remove('open'); renderList(); }
+
+      function resetFiltersForMode() {
+        $('search').value=''; $('community').value='all'; $('file').value='all'; $('kind').value='all'; $('relation').value='all';
+        $('kind').disabled = mode === 'files';
+        $('community').disabled = mode === 'files';
+        $('file').disabled = false;
+        closeDetail();
+        filterData();
+      }
+
+      function fitGraph() {
+        if (graph && visibleNodes.length) graph.zoomToFit(900,80,n=>visibleNodes.some(v=>v.id===n.id));
+      }
+
+      async function loadGraph() {
+        $('loading').style.display='grid';
+        $('loading').innerHTML='<div class="loading-card"><div class="spinner"></div><b>Loading the local project graph</b><span>Fetching Graphify node and relationship data…</span></div>';
+        try {
+          const response = await fetch('/api/graph', {cache:'no-store'});
+          if (!response.ok) throw new Error(`Graph API returned HTTP ${response.status}`);
+          const payload = await response.json();
+          raw = payload.graph || payload;
+          if (!Array.isArray(raw.nodes) || !Array.isArray(raw.links)) throw new Error('Graph data has an unexpected format.');
+          symbolById = new Map(raw.nodes.map(node=>[node.id,node]));
+          const degrees = new Map();
+          raw.links.forEach(link=>{
+            const source = typeof link.source === 'object' ? link.source.id : link.source;
+            const target = typeof link.target === 'object' ? link.target.id : link.target;
+            degrees.set(source,(degrees.get(source)||0)+1);
+            degrees.set(target,(degrees.get(target)||0)+1);
+          });
+          raw.nodes.forEach(node=>{node.degree=degrees.get(node.id)||0;});
+          $('node-count').textContent = raw.nodes.length;
+          $('edge-count').textContent = raw.links.length;
+          $('file-count').textContent = new Set(raw.nodes.map(n=>n.source_file).filter(Boolean)).size;
+          resetSelects();
+          makeFileGraph();
+          if (!graph) initGraph();
+          $('loading').style.display='none';
+          resetFiltersForMode();
+          setTimeout(fitGraph,650);
+        } catch (error) {
+          $('loading').innerHTML=`<div class="loading-card"><b>Could not load the project graph</b><span>${esc(error.message)}<br><br>Start the demo server from the repository root and open <code>/graph</code>. If the 3D library could not load, allow access to jsDelivr and reload.</span></div>`;
+        }
+      }
+
+      $('symbols-mode').addEventListener('click',()=>{if(mode!=='symbols'){mode='symbols';$('symbols-mode').classList.add('active');$('files-mode').classList.remove('active');$('symbols-mode').setAttribute('aria-selected','true');$('files-mode').setAttribute('aria-selected','false');resetFiltersForMode();}});
+      $('files-mode').addEventListener('click',()=>{if(mode!=='files'){mode='files';$('files-mode').classList.add('active');$('symbols-mode').classList.remove('active');$('files-mode').setAttribute('aria-selected','true');$('symbols-mode').setAttribute('aria-selected','false');resetFiltersForMode();}});
+      ['search','community','file','kind','relation'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',filterData));
+      $('fit').addEventListener('click',fitGraph);
+      $('refresh').addEventListener('click',loadGraph);
+      $('toggle-motion').addEventListener('click',()=>{motionOn=!motionOn;if(motionOn)graph.resumeAnimation();else graph.pauseAnimation();$('toggle-motion').textContent=motionOn?'Pause':'Resume';});
+      loadGraph();
+    })();
+  </script>
+</body>
+</html>

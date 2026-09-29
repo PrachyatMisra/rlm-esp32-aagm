@@ -18,10 +18,11 @@ By evaluating recursive depth dynamically (2 to 8 iterations) and offloading hal
 2. [Technical Bottleneck Resolutions](#technical-bottleneck-resolutions)
 3. [Interactive Demonstrations & Testing Quickstart](#interactive-demonstrations--testing-quickstart)
    - [Live Interactive Web Demonstration Studio (Port 8000)](#1-live-interactive-web-demonstration-studio-port-8000)
-   - [Offline Conversational RLM "Chat & Test" Agent](#2-offline-conversational-rlm-chat--test-agent)
-   - [Embedded Web Serial Console (Mock UART)](#3-embedded-web-serial-console-mock-uart)
-   - [Dual-Track Hardware-Free Verification Suite](#4-dual-track-hardware-free-verification-suite)
-   - [Physical ESP32 Arduino Deployment & Serial Chat](#5-physical-esp32-arduino-deployment--serial-chat)
+   - [Interactive 3D Code & Pipeline Graph](#2-interactive-3d-code--pipeline-graph)
+   - [Offline Conversational RLM "Chat & Test" Agent](#3-offline-conversational-rlm-chat--test-agent)
+   - [Embedded Web Serial Console (Mock UART)](#4-embedded-web-serial-console-mock-uart)
+   - [Dual-Track Hardware-Free Verification Suite](#5-dual-track-hardware-free-verification-suite)
+   - [Physical ESP32 Arduino Deployment & Serial Chat](#6-physical-esp32-arduino-deployment--serial-chat)
 4. [Hardware & Software Architecture](#hardware--software-architecture)
 5. [Quantization & Memory Layout](#quantization--memory-layout)
 6. [Empirical Benchmarks](#empirical-benchmarks)
@@ -104,7 +105,26 @@ Features included in the web interface:
 
 ---
 
-### 2. Offline Conversational RLM "Chat & Test" Agent
+### 2. Interactive 3D Code & Pipeline Graph
+
+The same local server exposes a 3D, searchable view of the repository's Graphify code index. Start the server as above, then open **[http://localhost:8000/graph](http://localhost:8000/graph)** (or click **3D Pipeline Graph** in the studio).
+
+```bash
+python3 host/web_demo.py
+# In another browser tab: http://localhost:8000/graph
+```
+
+The explorer includes:
+- **Symbol graph** for functions, classes, rationale notes, and extracted code relationships.
+- **File pipeline** view that rolls symbols and cross-file links up to their source files.
+- Live search plus community, file, node-kind, and relationship filters; click a node to inspect neighbors and source location.
+- Orbit, zoom, fit-to-view, and pause controls. Source files remain on this machine; the 3D renderer is loaded from the free jsDelivr CDN, so a network connection is needed for the renderer.
+
+The page reads [`graphify-out/graph.json`](graphify-out/graph.json), the repository's [Graphify-Labs](https://github.com/Graphify-Labs) graph snapshot, directly—there is no database or Python package to install. To reflect code changes, refresh/regenerate that Graphify index using the local Graphify workflow; the page fetches the current JSON each time it loads. Rendering uses the open-source [3d-force-graph](https://github.com/vasturiano/3d-force-graph) library.
+
+---
+
+### 3. Offline Conversational RLM "Chat & Test" Agent
 Simulate and test the exact RLM model conversationally on your laptop without needing physical ESP32 hardware:
 
 ```bash
@@ -140,7 +160,7 @@ I analyzed your input: "the acting was phenomenal and deeply moving"
 
 ---
 
-### 3. Embedded Web Serial Console (Mock UART)
+### 4. Embedded Web Serial Console (Mock UART)
 Evaluate the line-oriented FreeRTOS serial protocol through the host gateway simulator:
 
 ```bash
@@ -150,7 +170,7 @@ Simulates real UART communication, runs benchmark sweeps across all operating pr
 
 ---
 
-### 4. Dual-Track Hardware-Free Verification Suite
+### 5. Dual-Track Hardware-Free Verification Suite
 
 ```bash
 # Track 1: C++ Native Firmware Parity vs PyTorch Golden Reference (12/12 Golden Vectors)
@@ -162,7 +182,7 @@ make -C verification/verilog check
 
 ---
 
-### 5. Physical ESP32 Arduino Deployment & Serial Chat
+### 6. Physical ESP32 Arduino Deployment & Serial Chat
 When flashing to an actual ESP32 DevKit board:
 1. Open `firmware/rlm_esp32/rlm_esp32.ino` in Arduino IDE or PlatformIO.
 2. Build and upload to the board (baud rate: 115200).
@@ -291,9 +311,13 @@ rlm-esp32-aagm/
 │       ├── sim_aagm_gate.py             # Cycle-accurate simulator emitting aagm_gate.vcd
 │       ├── sim_aagm_arbiter_coprocessor.py # Cycle-accurate simulator emitting aagm_coprocessor.vcd
 │       └── Makefile                     # Dual-mode verification makefile
+├── graphify-out/
+│   ├── graph.json                       # Local Graphify symbol and relationship index
+│   └── manifest.json                   # Indexed-source manifest
 ├── host/
 │   ├── gateway.py                       # Serial client for physical board or mock simulator
-│   └── web_demo.py                      # Interactive live web dashboard (0.0.0.0:8000)
+│   ├── pipeline_graph.html              # Searchable interactive 3D code/pipeline explorer
+│   └── web_demo.py                      # Interactive dashboard and graph API (0.0.0.0:8000)
 └── artifacts/                           # Benchmark JSON records and visual SVG charts
 ```
 

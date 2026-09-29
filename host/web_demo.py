@@ -4,6 +4,7 @@
 Runs a zero-dependency web server binding to 0.0.0.0:8000.
 Features:
   - Interactive Live Inference Studio with text input & presets
+  - Searchable 3D Graphify code and file-pipeline explorer at /graph
   - Conversational RLM Chat Studio with step reasoning explanations
   - Interactive Web Serial Console (simulates ESP32 UART in browser)
   - Live Chart.js Visualization (Halting Mass & Gate Curve, Energy Breakdown)
@@ -235,6 +236,9 @@ HTML_CONTENT = """<!DOCTYPE html>
         <button onclick="switchTab('defense')" id="tab-btn-defense" class="px-3 py-1.5 rounded-lg font-medium transition text-gray-400 hover:text-white hover:bg-gray-800 flex items-center">
           <i class="fa-solid fa-graduation-cap mr-1.5 text-xs"></i>Review Guide
         </button>
+        <a href="/graph" class="px-3 py-1.5 rounded-lg font-medium transition text-cyan-300 hover:text-white hover:bg-gray-800 flex items-center border border-cyan-900/60">
+          <i class="fa-solid fa-share-nodes mr-1.5 text-xs"></i>3D Pipeline Graph ↗
+        </a>
       </nav>
     </div>
   </header>
@@ -1296,6 +1300,25 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(HTML_CONTENT.encode("utf-8"))
+        elif url.path == "/graph":
+            graph_page = (REPO_ROOT / "host" / "pipeline_graph.html").read_text(encoding="utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(graph_page.encode("utf-8"))
+        elif url.path == "/api/graph":
+            graph_file = REPO_ROOT / "graphify-out" / "graph.json"
+            if not graph_file.exists():
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "Graph index not found: graphify-out/graph.json"}).encode("utf-8"))
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(graph_file.read_bytes())
         elif url.path == "/api/verify-golden":
             data = run_golden_check()
             self.send_response(200)
