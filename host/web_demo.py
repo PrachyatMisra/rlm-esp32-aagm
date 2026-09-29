@@ -558,13 +558,116 @@ HTML_CONTENT = """<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- Hardware Waveform Simulation Trace -->
+        <!-- Interactive Digital Waveform Timing Diagram -->
+        <div class="space-y-3">
+          <div class="flex flex-wrap justify-between items-center gap-2">
+            <div>
+              <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-wave-square text-cyan-400"></i>
+                <span>Interactive Waveform Timing Diagram (Cycle Simulation)</span>
+              </h3>
+              <p class="text-[11px] text-gray-400 mt-0.5">Real RTL bus cycles, Q1.15 mass accumulation, speculative prearm, and interrupt triggers</p>
+            </div>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">100 MHz Ref Clock</span>
+          </div>
+
+          <!-- Waveform Canvas/SVG Container -->
+          <div class="bg-gray-950 border border-gray-800 rounded-xl p-4 overflow-x-auto">
+            <svg viewBox="0 0 920 340" class="w-full min-w-[760px] font-mono text-[11px]">
+              <!-- Grid and Time Markers -->
+              <defs>
+                <pattern id="grid" width="60" height="340" patternUnits="userSpaceOnUse">
+                  <line x1="60" y1="0" x2="60" y2="340" stroke="#1f2937" stroke-width="1" stroke-dasharray="2,2"/>
+                </pattern>
+              </defs>
+              <rect width="920" height="340" fill="url(#grid)" opacity="0.6"/>
+
+              <!-- Time Header -->
+              <text x="140" y="20" fill="#6b7280" font-size="10">0ns</text>
+              <text x="260" y="20" fill="#6b7280" font-size="10">40ns (RST_N ↑)</text>
+              <text x="420" y="20" fill="#6b7280" font-size="10">80ns (Step 1)</text>
+              <text x="580" y="20" fill="#6b7280" font-size="10">120ns (Step 2 PREARM)</text>
+              <text x="740" y="20" fill="#6b7280" font-size="10">160ns (HALT IRQ)</text>
+              <text x="840" y="20" fill="#6b7280" font-size="10">200ns (ABORT)</text>
+
+              <!-- Signal 1: clk -->
+              <text x="10" y="52" fill="#94a3b8" font-weight="bold">clk (100MHz)</text>
+              <path d="M 140,55 L 155,55 L 155,38 L 170,38 L 170,55 L 185,55 L 185,38 L 200,38 L 200,55 L 215,55 L 215,38 L 230,38 L 230,55 L 245,55 L 245,38 L 260,38 L 260,55 L 275,55 L 275,38 L 290,38 L 290,55 L 305,55 L 305,38 L 320,38 L 320,55 L 335,55 L 335,38 L 350,38 L 350,55 L 365,55 L 365,38 L 380,38 L 380,55 L 395,55 L 395,38 L 410,38 L 410,55 L 425,55 L 425,38 L 440,38 L 440,55 L 455,55 L 455,38 L 470,38 L 470,55 L 485,55 L 485,38 L 500,38 L 500,55 L 515,55 L 515,38 L 530,38 L 530,55 L 545,55 L 545,38 L 560,38 L 560,55 L 575,55 L 575,38 L 590,38 L 590,55 L 605,55 L 605,38 L 620,38 L 620,55 L 635,55 L 635,38 L 650,38 L 650,55 L 665,55 L 665,38 L 680,38 L 680,55 L 695,55 L 695,38 L 710,38 L 710,55 L 725,55 L 725,38 L 740,38 L 740,55 L 755,55 L 755,38 L 770,38 L 770,55 L 785,55 L 785,38 L 800,38 L 800,55 L 815,55 L 815,38 L 830,38 L 830,55 L 845,55 L 845,38 L 860,38 L 860,55 L 875,55 L 875,38 L 890,38 L 890,55" fill="none" stroke="#38bdf8" stroke-width="1.5"/>
+
+              <!-- Signal 2: rst_n -->
+              <text x="10" y="92" fill="#94a3b8" font-weight="bold">rst_n</text>
+              <path d="M 140,95 L 240,95 L 240,78 L 900,78" fill="none" stroke="#e2e8f0" stroke-width="1.8"/>
+
+              <!-- Signal 3: APB Bus Write Data -->
+              <text x="10" y="132" fill="#94a3b8" font-weight="bold">p_wdata (bus)</text>
+              <rect x="250" y="118" width="90" height="20" rx="3" fill="#1e293b" stroke="#475569"/>
+              <text x="260" y="132" fill="#cbd5e1" font-size="10">BUDGET=8</text>
+              <rect x="350" y="118" width="85" height="20" rx="3" fill="#1e293b" stroke="#475569"/>
+              <text x="360" y="132" fill="#cbd5e1" font-size="10">CTRL: START</text>
+              <rect x="445" y="118" width="95" height="20" rx="3" fill="#1e293b" stroke="#38bdf8"/>
+              <text x="452" y="132" fill="#38bdf8" font-size="10">s2=17911, g1</text>
+              <rect x="550" y="118" width="115" height="20" rx="3" fill="#1e293b" stroke="#c084fc"/>
+              <text x="556" y="132" fill="#c084fc" font-size="10">s3=9175 (&lt;tau_lo)</text>
+              <rect x="675" y="118" width="105" height="20" rx="3" fill="#1e293b" stroke="#34d399"/>
+              <text x="682" y="132" fill="#34d399" font-size="10">g2=12330 (&gt;TH)</text>
+              <rect x="790" y="118" width="95" height="20" rx="3" fill="#1e293b" stroke="#f43f5e"/>
+              <text x="798" y="132" fill="#f43f5e" font-size="10">CTRL: ABORT</text>
+
+              <!-- Signal 4: steps_reg -->
+              <text x="10" y="172" fill="#94a3b8" font-weight="bold">steps_reg [3:0]</text>
+              <rect x="140" y="158" width="280" height="20" rx="3" fill="#0f172a" stroke="#334155"/>
+              <text x="250" y="172" fill="#94a3b8" font-size="10">k = 0</text>
+              <rect x="420" y="158" width="150" height="20" rx="3" fill="#0f172a" stroke="#38bdf8"/>
+              <text x="480" y="172" fill="#38bdf8" font-size="10">k = 1</text>
+              <rect x="570" y="158" width="330" height="20" rx="3" fill="#0f172a" stroke="#34d399"/>
+              <text x="700" y="172" fill="#34d399" font-size="10">k = 2 (Resolved)</text>
+
+              <!-- Signal 5: mass_acc_reg -->
+              <text x="10" y="212" fill="#94a3b8" font-weight="bold">mass_acc_reg</text>
+              <rect x="140" y="198" width="280" height="20" rx="3" fill="#0f172a" stroke="#334155"/>
+              <text x="220" y="212" fill="#94a3b8" font-size="10">0.000 (0)</text>
+              <rect x="420" y="198" width="150" height="20" rx="3" fill="#0f172a" stroke="#fbbf24"/>
+              <text x="440" y="212" fill="#fbbf24" font-size="10">0.394 (12,917)</text>
+              <rect x="570" y="198" width="330" height="20" rx="3" fill="#0f172a" stroke="#34d399"/>
+              <text x="640" y="212" fill="#34d399" font-weight="bold" font-size="10">1.018 (33,355 &gt;= 29,491 THRESHOLD)</text>
+
+              <!-- Signal 6: speculative_prearm -->
+              <text x="10" y="252" fill="#c084fc" font-weight="bold">speculative_prearm</text>
+              <path d="M 140,255 L 560,255 L 560,238 L 780,238 L 780,255 L 900,255" fill="none" stroke="#c084fc" stroke-width="2"/>
+              <rect x="562" y="239" width="150" height="15" fill="#c084fc" opacity="0.15"/>
+              <text x="570" y="250" fill="#e9d5ff" font-size="9">APOP Prearm Active</text>
+
+              <!-- Signal 7: irq_halt -->
+              <text x="10" y="292" fill="#34d399" font-weight="bold">irq_halt (Interrupt)</text>
+              <path d="M 140,295 L 685,295 L 685,278 L 780,278 L 780,295 L 900,295" fill="none" stroke="#34d399" stroke-width="2.2"/>
+              <rect x="687" y="279" width="90" height="15" fill="#34d399" opacity="0.2"/>
+              <text x="692" y="290" fill="#a7f3d0" font-size="9">HALT TRIGGER</text>
+
+              <!-- Signal 8: irq_abort -->
+              <text x="10" y="328" fill="#f43f5e" font-weight="bold">irq_abort</text>
+              <path d="M 140,332 L 800,332 L 800,315 L 890,315 L 890,332 L 900,332" fill="none" stroke="#f43f5e" stroke-width="2"/>
+              <rect x="802" y="316" width="85" height="15" fill="#f43f5e" opacity="0.2"/>
+              <text x="810" y="327" fill="#fecdd3" font-size="9">ABORT IRQ</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Hardware Waveform Simulation Trace Log -->
         <div class="space-y-3">
           <div class="flex justify-between items-center">
-            <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Verilog Simulation Log (Cycle-Accurate DUT)</h3>
-            <button onclick="runVerilogTest()" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-mono">Re-simulate</button>
+            <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-terminal text-emerald-400"></i>
+              <span>Verilog Simulation Log (Cycle-Accurate DUT)</span>
+            </h3>
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] text-gray-400">Generates real <code>.vcd</code> files</span>
+              <button onclick="runVerilogTest()" class="text-xs px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-mono flex items-center gap-1.5">
+                <i class="fa-solid fa-play text-[10px]"></i>
+                <span>Re-simulate</span>
+              </button>
+            </div>
           </div>
-          <pre id="coproc-verilog-log" class="p-4 bg-gray-950 rounded-xl text-emerald-400 font-mono text-[11px] h-60 overflow-y-auto whitespace-pre-wrap leading-relaxed">Simulating APB Coprocessor...</pre>
+          <pre id="coproc-verilog-log" class="p-4 bg-gray-950 rounded-xl text-emerald-400 font-mono text-[11px] h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">Simulating APB Coprocessor...</pre>
         </div>
       </div>
     </div>
