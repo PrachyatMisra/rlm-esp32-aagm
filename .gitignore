@@ -1,0 +1,19 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Native and HDL verification outputs
+firmware/test/host_harness
+verification/verilog/*.vvp
+
+# PlatformIO build output
+.pio/
+
+# Local analysis caches and generated graph indexes
+graphify-out/cache/
+
+# OS/editor files
+.DS_Store
+.vscode/

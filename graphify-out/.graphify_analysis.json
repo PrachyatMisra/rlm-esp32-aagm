@@ -1,0 +1,281 @@
+{
+  "communities": {
+    "0": [
+      "dataloader",
+      "no_grad",
+      "path",
+      "tools_aagm_aagmrlm",
+      "tools_aagm_aagmrlm_embed",
+      "tools_aagm_aagmrlm_forward",
+      "tools_aagm_modelconfig",
+      "tools_aagm_modelconfig_ffn_dim",
+      "tools_aagm_modelconfig_gate_dim",
+      "tools_aagm_rationale_166",
+      "tools_aagm_rationale_182",
+      "tools_train_export",
+      "tools_train_export_build_quant_table",
+      "tools_train_export_c_ident",
+      "tools_train_export_calibrate_tau_lo",
+      "tools_train_export_collate",
+      "tools_train_export_dequant_mirror",
+      "tools_train_export_emit_golden",
+      "tools_train_export_emit_headers",
+      "tools_train_export_evaluate",
+      "tools_train_export_f1_score",
+      "tools_train_export_gate_pairs",
+      "tools_train_export_main",
+      "tools_train_export_probe_model",
+      "tools_train_export_rationale_1",
+      "tools_train_export_rationale_104",
+      "tools_train_export_rationale_121",
+      "tools_train_export_rationale_173",
+      "tools_train_export_rationale_198",
+      "tools_train_export_rationale_284",
+      "tools_train_export_set_seed"
+    ],
+    "1": [
+      "firmware_rlm_esp32_src_rlm_config",
+      "firmware_rlm_esp32_src_rlm_engine_h_firmware_rlm_esp32_src_rlm_engine",
+      "firmware_rlm_esp32_src_rlm_engine_rlm_engine_init",
+      "firmware_rlm_esp32_src_rlm_weights",
+      "firmware_rlm_esp32_src_tokenizer",
+      "firmware_rlm_esp32_src_tokenizer_is_tok_char",
+      "firmware_rlm_esp32_src_tokenizer_rlm_tokenize",
+      "firmware_test_host_harness",
+      "firmware_test_host_harness_golden",
+      "firmware_test_host_harness_golden_depth",
+      "firmware_test_host_harness_golden_gates",
+      "firmware_test_host_harness_golden_ids",
+      "firmware_test_host_harness_golden_logits",
+      "firmware_test_host_harness_golden_n_real",
+      "firmware_test_host_harness_golden_pred",
+      "firmware_test_host_harness_golden_shadows",
+      "firmware_test_host_harness_golden_steps",
+      "firmware_test_host_harness_golden_text",
+      "firmware_test_host_harness_main",
+      "firmware_test_host_harness_parse_row",
+      "string"
+    ],
+    "2": [
+      "firmware_rlm_esp32_src_rlm_engine_cpp_firmware_rlm_esp32_src_rlm_engine",
+      "firmware_rlm_esp32_src_rlm_engine_dq_dot",
+      "firmware_rlm_esp32_src_rlm_engine_gelu_exact",
+      "firmware_rlm_esp32_src_rlm_engine_layer_norm",
+      "firmware_rlm_esp32_src_rlm_engine_local_launch",
+      "firmware_rlm_esp32_src_rlm_engine_local_no_abort",
+      "firmware_rlm_esp32_src_rlm_engine_local_prime",
+      "firmware_rlm_esp32_src_rlm_engine_local_wait_g",
+      "firmware_rlm_esp32_src_rlm_engine_local_wait_s",
+      "firmware_rlm_esp32_src_rlm_engine_masked_pool_pre_refine",
+      "firmware_rlm_esp32_src_rlm_engine_rlm_engine_infer",
+      "firmware_rlm_esp32_src_rlm_engine_rlm_gate_eval",
+      "firmware_rlm_esp32_src_rlm_engine_rlm_shadow_eval",
+      "firmware_rlm_esp32_src_rlm_engine_sigmoidf",
+      "firmware_rlm_esp32_src_rlm_engine_stage_attention",
+      "firmware_rlm_esp32_src_rlm_engine_stage_ffn",
+      "firmware_rlm_esp32_src_rlm_engine_stage_refine",
+      "rlmgateprovider",
+      "rlmresult"
+    ],
+    "3": [
+      "tools_aagm",
+      "tools_aagm_aagmrlm_init",
+      "tools_aagm_compactrlm",
+      "tools_aagm_compactrlm_build_pe",
+      "tools_aagm_compactrlm_init",
+      "tools_aagm_fnv1a_hash",
+      "tools_aagm_py_tensor",
+      "tools_aagm_rationale_1",
+      "tools_aagm_rationale_101",
+      "tools_aagm_rationale_155",
+      "tools_aagm_rationale_70",
+      "tools_aagm_recursiveblock",
+      "tools_aagm_recursiveblock_forward",
+      "tools_aagm_recursiveblock_init",
+      "tools_aagm_shadowgate",
+      "tools_aagm_shadowgate_forward",
+      "tools_aagm_shadowgate_init",
+      "tools_aagm_tokenize"
+    ],
+    "4": [
+      "tools_quantize",
+      "tools_quantize_apply_dequant_mirror",
+      "tools_quantize_dequantize",
+      "tools_quantize_fake_quant",
+      "tools_quantize_py_tensor",
+      "tools_quantize_quantize_per_channel",
+      "tools_quantize_quanttable",
+      "tools_quantize_quanttable_add_f32",
+      "tools_quantize_quanttable_add_linear",
+      "tools_quantize_quanttable_float_bytes",
+      "tools_quantize_quanttable_init",
+      "tools_quantize_quanttable_int8_bytes",
+      "tools_quantize_rationale_1",
+      "tools_quantize_rationale_19",
+      "tools_quantize_rationale_32",
+      "tools_quantize_rationale_38",
+      "tools_quantize_rationale_73",
+      "tools_quantize_resolve"
+    ],
+    "5": [
+      "host_gateway",
+      "host_gateway_device",
+      "host_gateway_device_cmd",
+      "host_gateway_device_infer",
+      "host_gateway_device_init",
+      "host_gateway_device_read_line",
+      "host_gateway_eval_on_device",
+      "host_gateway_main",
+      "host_gateway_make_figures",
+      "host_gateway_rationale_1",
+      "host_gateway_rationale_46",
+      "host_gateway_rationale_63",
+      "host_gateway_selftest"
+    ],
+    "6": [
+      "label",
+      "random",
+      "text",
+      "tools_corpus",
+      "tools_corpus_build_corpus",
+      "tools_corpus_build_synthetic",
+      "tools_corpus_corpus",
+      "tools_corpus_hardly",
+      "tools_corpus_load_hf_imdb",
+      "tools_corpus_neg",
+      "tools_corpus_one",
+      "tools_corpus_rationale_1",
+      "tools_corpus_rationale_112"
+    ],
+    "7": [
+      "dataset",
+      "tools_train_export_idsdataset",
+      "tools_train_export_idsdataset_getitem",
+      "tools_train_export_idsdataset_init",
+      "tools_train_export_idsdataset_len"
+    ]
+  },
+  "cohesion": {
+    "0": 0.12258064516129032,
+    "1": 0.12380952380952381,
+    "2": 0.2222222222222222,
+    "3": 0.16339869281045752,
+    "4": 0.17647058823529413,
+    "5": 0.2564102564102564,
+    "6": 0.2692307692307692,
+    "7": 0.4
+  },
+  "gods": [
+    {
+      "id": "tools_aagm_aagmrlm",
+      "label": "AagmRLM",
+      "degree": 14
+    },
+    {
+      "id": "firmware_test_host_harness_golden",
+      "label": "Golden",
+      "degree": 12
+    },
+    {
+      "id": "tools_aagm_modelconfig",
+      "label": "ModelConfig",
+      "degree": 12
+    },
+    {
+      "id": "tools_quantize_quanttable",
+      "label": "QuantTable",
+      "degree": 12
+    },
+    {
+      "id": "tools_train_export_main",
+      "label": "main()",
+      "degree": 12
+    },
+    {
+      "id": "firmware_rlm_esp32_src_rlm_engine_rlm_engine_infer",
+      "label": "rlm_engine_infer()",
+      "degree": 11
+    },
+    {
+      "id": "host_gateway_device",
+      "label": "Device",
+      "degree": 8
+    },
+    {
+      "id": "tools_corpus_one",
+      "label": "_one()",
+      "degree": 8
+    },
+    {
+      "id": "firmware_rlm_esp32_src_rlm_engine_dq_dot",
+      "label": "dq_dot()",
+      "degree": 7
+    },
+    {
+      "id": "tools_aagm_tokenize",
+      "label": "tokenize()",
+      "degree": 6
+    }
+  ],
+  "surprises": [
+    {
+      "source": "main()",
+      "target": "rlm_engine_init()",
+      "source_files": [
+        "firmware/test/host_harness.cpp",
+        "firmware/rlm_esp32/src/rlm_engine.cpp"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; peripheral node `rlm_engine_init()` unexpectedly reaches hub `main()`"
+    },
+    {
+      "source": "main()",
+      "target": "rlm_engine_infer()",
+      "source_files": [
+        "firmware/test/host_harness.cpp",
+        "firmware/rlm_esp32/src/rlm_engine.cpp"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "dequant_mirror()",
+      "target": "QuantTable",
+      "source_files": [
+        "tools/train_export.py",
+        "tools/quantize.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "emit_headers()",
+      "target": "QuantTable",
+      "source_files": [
+        "tools/train_export.py",
+        "tools/quantize.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    },
+    {
+      "source": "main()",
+      "target": "rlm_tokenize()",
+      "source_files": [
+        "firmware/test/host_harness.cpp",
+        "firmware/rlm_esp32/src/tokenizer.cpp"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source"
+    }
+  ],
+  "tokens": {
+    "input": 0,
+    "output": 0
+  }
+}

@@ -1,0 +1,6 @@
+# Host-side tools (training, export, gateway, figures)
+torch>=2.0          # CPU build is fine (https://download.pytorch.org/whl/cpu)
+numpy
+pyserial            # only for host/gateway.py against real hardware
+matplotlib          # figures
+datasets            # optional: --dataset hf route (HuggingFace imdb)
