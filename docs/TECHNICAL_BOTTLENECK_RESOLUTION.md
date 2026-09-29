@@ -103,41 +103,19 @@ Output:
 
 ---
 
-## 4. Offline Interactive "Chat & Test" Model (Mac/Linux/Windows)
+## 4. Offline RLM Sentiment Test CLI
 
-To simulate, test, and "chat" with the RLM model offline on your laptop (without requiring any ESP32 hardware), use the newly created interactive tool:
+The ESP32-parity model and host harness perform **binary sentiment classification**; the compact model does not generate arbitrary conversational text. Use the CLI to run its actual C++ inference without a board:
 
-### 4.1 Running the Conversational RLM Agent
 ```bash
+# Interactive sentiment test shell
 python3 tools/chat_rlm.py
-```
-#### Interactive Session Example:
-```text
-======================================================================
-   Edge-RLM Offline Conversational Testing Model (ESP32 Simulation)
-======================================================================
-Commands:
-  /mode PERF|BAL|ECO  - Change DVFS profile
-  /batt <millivolts>  - Adjust simulated battery voltage (e.g. /batt 3500)
-  /help               - Display command reference
-  exit | quit         - Exit chat session
-----------------------------------------------------------------------
-Type any sentence, review, or question to chat with the RLM model:
 
-RLM [PERF | 4000mV] > the acting was phenomenal and deeply moving
-
-I analyzed your input: "the acting was phenomenal and deeply moving"
-• Classification Verdict: POSITIVE (+) (Confidence: 100.0%)
-• Recursive Reasoning   : 2 steps (Cumulative Mass: 1.033 / 0.900 threshold)
-• Latency & Compute     : 2,105 μs (2.10 ms) | Saved: 6 steps (75% reduction)
-• Hardware Telemetry    : PERF @ 240 MHz | Loaded Batt: 3990.0 mV (-10.0 mV droop)
-• Patented Features     : 0 converged tokens stabilized, 0 speculative APOP pre-arm hints fired
-```
-
-### 4.2 Single-Shot CLI Evaluation
-```bash
+# Single review
 python3 tools/chat_rlm.py --prompt "an uninspired and painfully boring film" --mode ECO
 ```
+
+The output reports the predicted class, confidence, recursion depth, cumulative halting mass, host latency, selected profile, and simulated battery droop. General repository questions are handled by the web chat layer, not by the ESP32 classifier.
 
 ---
 
@@ -166,15 +144,14 @@ When you connect the physical ESP32 via USB:
 
 ---
 
-## 6. Web Studio Demonstration
+## 6. Web Demonstration
 
-Launch the interactive web dashboard on port 8000:
+Launch the local interface:
+
 ```bash
 python3 host/web_demo.py
 ```
-Open **http://localhost:8000** to access:
-- **Live Studio Tab:** Real-time sentiment inference, recursion step breakdown, battery droop simulation slider.
-- **RLM Chat Tab:** Interactive conversational chat with reasoning depth and confidence pills.
-- **Patent Tab:** Complete 20-claim patent disclosure and diagrams.
-- **Verification Tab:** Automated C++ golden test runner and Verilog coprocessor simulation.
-- **Review Guide Tab:** Slide-by-slide script and viva voce defense answers.
+
+Open **http://localhost:8000** for the focused project chat. **Ask about the project** retrieves checked-in technical sources; **Analyze a review** invokes the native C++ Edge-RLM classifier and presents its measured inference details. Optional local Ollama generation is documented in the main README; prompts are not sent to a hosted API.
+
+The former engineering dashboard is kept at **http://localhost:8000/lab**, and the Graphify-based interactive 3D code/pipeline view is at **http://localhost:8000/graph**.

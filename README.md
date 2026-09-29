@@ -17,9 +17,9 @@ By evaluating recursive depth dynamically (2 to 8 iterations) and offloading hal
 1. [Core Innovations & Patent Highlights](#core-innovations--patent-highlights)
 2. [Technical Bottleneck Resolutions](#technical-bottleneck-resolutions)
 3. [Interactive Demonstrations & Testing Quickstart](#interactive-demonstrations--testing-quickstart)
-   - [Live Interactive Web Demonstration Studio (Port 8000)](#1-live-interactive-web-demonstration-studio-port-8000)
+   - [Focused Project Chat & Review Demo (Port 8000)](#1-focused-project-chat--review-demo-port-8000)
    - [Interactive 3D Code & Pipeline Graph](#2-interactive-3d-code--pipeline-graph)
-   - [Offline Conversational RLM "Chat & Test" Agent](#3-offline-conversational-rlm-chat--test-agent)
+   - [Offline RLM Sentiment Test CLI](#3-offline-rlm-sentiment-test-cli)
    - [Embedded Web Serial Console (Mock UART)](#4-embedded-web-serial-console-mock-uart)
    - [Dual-Track Hardware-Free Verification Suite](#5-dual-track-hardware-free-verification-suite)
    - [Physical ESP32 Arduino Deployment & Serial Chat](#6-physical-esp32-arduino-deployment--serial-chat)
@@ -86,28 +86,36 @@ Detailed mathematical derivations and engineering proofs are in [`docs/TECHNICAL
 
 ## Interactive Demonstrations & Testing Quickstart
 
-### 1. Live Interactive Web Demonstration Studio (Port 8000)
-Run the zero-dependency web application (works on Mac, Linux, and Windows without extra dependencies):
+### 1. Focused Project Chat & Review Demo (Port 8000)
+Start the local app and open its streamlined chat interface:
 
 ```bash
 python3 host/web_demo.py
-# Open http://localhost:8000 in your browser
+# Open http://localhost:8000
 ```
 
-Features included in the web interface:
-- **Live Studio Tab**: Type any review or sentence to observe real-time sentiment prediction, confidence %, latency, and step-by-step halting cards.
-- **Interactive Chart.js Visualizer**: Real-time chart displaying cumulative halting mass $M_k$ vs ACT threshold ($0.900$) and mixing gate values $g_k$.
-- **RLM Chat Tab**: Conversational interface with the RLM agent displaying dynamic recursive reasoning and step savings.
-- **Interactive Serial Console**: Real-time terminal emulator allowing you to send `CHAT`, `INFER`, `BENCH`, `STAT`, `MODE`, and `BATT` commands directly.
-- **Hardware Coprocessor Tab**: Memory-mapped register viewer and cycle-accurate RTL Verilog simulation logs.
-- **Battery Droop Slider**: Simulates battery discharge (3.3V - 4.2V), calculating internal resistance voltage droop and displaying brownout warnings.
-- **Patent & Defense Hub**: Complete searchable text of all 20 patent claims and viva voce examination Q&A.
+Choose **Ask about the project** for source-backed answers from repository documents, or **Analyze a review** to run the actual Edge-RLM sentiment classifier and inspect its prediction, confidence, halting mass, recursive steps, and native host latency. The chat keeps recent turns for the current browser session. The legacy hardware dashboard remains available at [`/lab`](http://localhost:8000/lab), and the 3D graph at [`/graph`](http://localhost:8000/graph).
+
+**Important model boundary:** the compact ESP32 RLM in this repository is a binary sentiment classifier; its weights are not a general text-generation model. Project chat checks for Ollama on loopback and uses it when available; otherwise it falls back to local document retrieval with file citations. Ollama is optional, free to run locally, and requires no API key. Prompts are not sent to a hosted AI API.
+
+```bash
+# Optional: install Ollama from https://ollama.com/download, start it, then fetch a model once:
+ollama pull qwen2.5:3b
+# With Ollama running, start the app in another terminal:
+RLM_CHAT_BACKEND=ollama RLM_CHAT_MODEL=qwen2.5:3b python3 host/web_demo.py
+```
+
+If Ollama is unavailable, chat falls back to local repository search; sentiment analysis still runs through the existing C++ host harness. First analysis builds the harness automatically when needed.
+
+```bash
+python3 -m unittest discover -s host -p 'test_*.py'
+```
 
 ---
 
 ### 2. Interactive 3D Code & Pipeline Graph
 
-The same local server exposes a 3D, searchable view of the repository's Graphify code index. Start the server as above, then open **[http://localhost:8000/graph](http://localhost:8000/graph)** (or click **3D Pipeline Graph** in the studio).
+The same local server exposes a 3D, searchable view of the repository's Graphify code index. Start the server as above, then open **[http://localhost:8000/graph](http://localhost:8000/graph)** (or click **Graph** in the chat header).
 
 ```bash
 python3 host/web_demo.py
@@ -124,38 +132,25 @@ The page reads [`graphify-out/graph.json`](graphify-out/graph.json), the reposit
 
 ---
 
-### 3. Offline Conversational RLM "Chat & Test" Agent
-Simulate and test the exact RLM model conversationally on your laptop without needing physical ESP32 hardware:
+### 3. Offline RLM Sentiment Test CLI
+Run the parity-matched host inference harness without physical ESP32 hardware (this tests sentiment classification; project Q&A is in the web chat above):
 
 ```bash
-# Launch interactive conversational terminal:
+# Launch interactive sentiment test shell:
 python3 tools/chat_rlm.py
 
 # Or single-shot prompt evaluation:
 python3 tools/chat_rlm.py --prompt "the acting was phenomenal and deeply moving" --mode PERF
 ```
 
-**Live Terminal Output:**
+**Sample inference output:**
 ```text
-======================================================================
-   Edge-RLM Offline Conversational Testing Model (ESP32 Simulation)
-======================================================================
-Commands:
-  /mode PERF|BAL|ECO  - Change DVFS profile
-  /batt <millivolts>  - Adjust simulated battery voltage (e.g. /batt 3500)
-  /help               - Display command reference
-  exit | quit         - Exit chat session
-----------------------------------------------------------------------
-Type any sentence, review, or question to chat with the RLM model:
-
-RLM [PERF | 4000mV] > the acting was phenomenal and deeply moving
-
-I analyzed your input: "the acting was phenomenal and deeply moving"
-• Classification Verdict: POSITIVE (+) (Confidence: 100.0%)
-• Recursive Reasoning   : 2 steps (Cumulative Mass: 1.033 / 0.900 threshold)
-• Latency & Compute     : 2,105 μs (2.10 ms) | Saved: 6 steps (75% reduction)
-• Hardware Telemetry    : PERF @ 240 MHz | Loaded Batt: 3990.0 mV (-10.0 mV droop)
-• Patented Features     : 0 converged tokens stabilized, 0 speculative APOP pre-arm hints fired
+Input: "the acting was phenomenal and deeply moving"
+Prediction: POSITIVE (100.0% confidence)
+Adaptive depth: 2 steps; halting mass 1.033 / 0.900
+Host inference: 2,081 μs at 240 MHz (PERF)
+Battery estimate: 3990.0 mV loaded, 10.0 mV droop
+Compared with the 8-step budget: 6 steps skipped. This classifier predicts review sentiment; it does not generate text.
 ```
 
 ---
@@ -208,7 +203,7 @@ When flashing to an actual ESP32 DevKit board:
 
 | Command | Arguments | Description | Example Response |
 | :--- | :--- | :--- | :--- |
-| `CHAT` | `<text>` | Conversational RLM sentiment reasoning and telemetry | `{"chat_reply":"...","confidence":99.8,"steps":2}` |
+| `CHAT` | `<text>` | Binary sentiment classification and recursive-inference telemetry | `{"chat_reply":"...","confidence":99.8,"steps":2}` |
 | `INFER` | `<text>` | Raw telemetry JSON line (logits, gates, shadows, droop) | `{"pred":1,"steps":2,"depth":0.9822,"us":3469}` |
 | `MODE` | `PERF \| BAL \| ECO \| AUTO` | Set DVFS frequency and recursion budget | `{"mode":"BAL","budget":6,"cpu_mhz":160}` |
 | `BATT` | `<millivolts> \| AUTO` | Set simulated battery OCV or read ADC on GPIO34 | `{"batt_mv":3800,"loaded_mv":3790,"profile":"BAL"}` |
@@ -298,7 +293,7 @@ rlm-esp32-aagm/
 │       ├── host_harness.cpp             # Host C++ test harness supporting --interactive mock UART
 │       └── Makefile                     # Fast compilation and golden check target
 ├── tools/
-│   ├── chat_rlm.py                      # Offline interactive conversational testing model
+│   ├── chat_rlm.py                      # Offline interactive sentiment test shell
 │   ├── demo.py                          # CLI step-by-step recursion tracer
 │   ├── aagm.py                          # Algorithmic reference model + ACT gating + shadow forecaster
 │   ├── quantize.py                      # Symmetric per-channel int8 quantization logic
@@ -315,9 +310,12 @@ rlm-esp32-aagm/
 │   ├── graph.json                       # Local Graphify symbol and relationship index
 │   └── manifest.json                   # Indexed-source manifest
 ├── host/
+│   ├── chat.html                        # Focused chat UI: project Q&A or actual sentiment inference
+│   ├── chat_agent.py                    # Local source retrieval + optional loopback Ollama + RLM adapter
+│   ├── test_chat_agent.py               # Chat retrieval, local backend and classifier tests
 │   ├── gateway.py                       # Serial client for physical board or mock simulator
 │   ├── pipeline_graph.html              # Searchable interactive 3D code/pipeline explorer
-│   └── web_demo.py                      # Interactive dashboard and graph API (0.0.0.0:8000)
+│   └── web_demo.py                      # Local chat, legacy /lab, graph and API server (0.0.0.0:8000)
 └── artifacts/                           # Benchmark JSON records and visual SVG charts
 ```
 

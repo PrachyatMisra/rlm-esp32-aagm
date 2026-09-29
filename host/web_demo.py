@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Interactive Web Review, Chat Studio & Engineering Dashboard for ESP32 AAGM-RLM.
+"""Local Edge-RLM demo server and engineering workbench.
 
-Runs a zero-dependency web server binding to 0.0.0.0:8000.
+Runs the standard-library HTTP server on 0.0.0.0:8000. The landing page
+separates repository chat from native C++ sentiment inference; the detailed
+engineering workbench remains available at /lab, with the Graphify explorer at
+/graph.
+
 Features:
-  - Interactive Live Inference Studio with text input & presets
+  - Focused local project chat with citations and optional loopback Ollama
+  - Real Edge-RLM sentiment analysis through the native C++ host harness
   - Searchable 3D Graphify code and file-pipeline explorer at /graph
-  - Conversational RLM Chat Studio with step reasoning explanations
+  - Interactive Live Inference Studio and presets at /lab
   - Interactive Web Serial Console (simulates ESP32 UART in browser)
   - Live Chart.js Visualization (Halting Mass & Gate Curve, Energy Breakdown)
   - Patent Specification & 20 Formal Claims Explorer
@@ -20,22 +25,29 @@ import json
 import os
 import subprocess
 import sys
-import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
+from threading import Lock
 from urllib.parse import urlparse
+
+try:
+    from .chat_agent import respond as respond_to_chat, status as chat_status
+except ImportError:
+    from chat_agent import respond as respond_to_chat, status as chat_status
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HARNESS = REPO_ROOT / "firmware" / "test" / "host_harness"
 VERILOG_DIR = REPO_ROOT / "verification" / "verilog"
 GOLDEN_TXT = REPO_ROOT / "tools" / "out" / "golden_vectors.txt"
 PATENT_MD = REPO_ROOT / "docs" / "PATENT_SPECIFICATION.md"
+_HARNESS_BUILD_LOCK = Lock()
 
 
 def ensure_harness():
-    if not HARNESS.exists():
-        subprocess.run(["make", "-C", str(HARNESS.parent), "host_harness"],
-                       check=True, capture_output=True)
+    with _HARNESS_BUILD_LOCK:
+        if not HARNESS.exists():
+            subprocess.run(["make", "-C", str(HARNESS.parent), "host_harness"],
+                           check=True, capture_output=True)
 
 
 def run_inference(text: str, budget: int = 8, profile: str = "PERF", batt_mv: float = 4000.0) -> dict:
@@ -89,50 +101,6 @@ def run_inference(text: str, budget: int = 8, profile: str = "PERF", batt_mv: fl
         "tail_us_saved": res.get("tail_us_saved", 0)
     }
     return res
-
-
-def run_chat(text: str, budget: int = 8, profile: str = "PERF", batt_mv: float = 4000.0) -> dict:
-    res = run_inference(text, budget, profile, batt_mv)
-    pred = res.get("pred", 0)
-    logits = res.get("logits", [0.0, 0.0])
-    steps = res.get("steps", 0)
-    mass = res.get("mass", 0.0)
-    hints = res.get("hints", 0)
-    frozen = res.get("frozen", 0)
-    lat_us = res.get("us", 0)
-
-    neg, pos = logits[0], logits[1]
-    m = max(neg, pos)
-    e_neg, e_pos = pow(2.71828, neg - m), pow(2.71828, pos - m)
-    conf = round(((e_pos if pred == 1 else e_neg) / (e_neg + e_pos)) * 100.0, 1)
-    verdict = "POSITIVE (+)" if pred == 1 else "NEGATIVE (-)"
-
-    msg_lower = text.lower().strip()
-    if msg_lower in ("hello", "hi", "hey"):
-        reply = (f"Hello! I am your Edge-RLM agent. I perform dynamic recursive reasoning (2 to 8 steps) "
-                 f"on-device. Try typing a review or asking me to analyze a statement!")
-    elif msg_lower in ("how do you work?", "who are you?", "explain"):
-        reply = (f"I am a Recursive Language Model with Asynchronous Adaptive Gating (AAGM). "
-                 f"Instead of a static 8-layer network, I reuse one block until cumulative halting mass "
-                 f"crosses 0.900. I average 2.18 steps, saving 72.8% computation with 0% accuracy drop!")
-    else:
-        reply = (f"I evaluated your input through the recursive block:\n"
-                 f"• Verdict: {verdict} (Confidence: {conf}%)\n"
-                 f"• Reasoning Depth: {steps} steps (Cumulative Mass: {mass:.3f} / 0.900 threshold)\n"
-                 f"• Efficiency: Saved {8 - steps} steps ({(8-steps)/8*100:.0f}% reduction vs fixed depth)\n"
-                 f"• Hardware Observer: {profile} @ {res.get('cpu_mhz')} MHz | Loaded Batt: {res.get('loaded_mv')} mV (-{res.get('droop_mv')} mV droop)\n"
-                 f"• Patented Features: {frozen} tokens stabilized, tail latency pre-computation active!")
-
-    return {
-        "reply": reply,
-        "pred": pred,
-        "verdict": verdict,
-        "confidence": conf,
-        "steps": steps,
-        "saved_steps": 8 - steps,
-        "us": lat_us,
-        "raw": res
-    }
 
 
 def run_serial_cmd(cmd_line: str) -> str:
@@ -218,9 +186,9 @@ HTML_CONTENT = """<!DOCTYPE html>
         <button onclick="switchTab('demo')" id="tab-btn-demo" class="px-3 py-1.5 rounded-lg font-medium transition bg-cyan-600 text-white shadow-sm flex items-center">
           <i class="fa-solid fa-bolt mr-1.5 text-xs"></i>Live Studio
         </button>
-        <button onclick="switchTab('chat')" id="tab-btn-chat" class="px-3 py-1.5 rounded-lg font-medium transition text-emerald-400 hover:text-white hover:bg-gray-800 flex items-center">
-          <i class="fa-solid fa-comments mr-1.5 text-xs"></i>RLM Chat
-        </button>
+        <a href="/" class="px-3 py-1.5 rounded-lg font-medium transition text-emerald-400 hover:text-white hover:bg-gray-800 flex items-center">
+          <i class="fa-solid fa-comments mr-1.5 text-xs"></i>Project Chat
+        </a>
         <button onclick="switchTab('serial')" id="tab-btn-serial" class="px-3 py-1.5 rounded-lg font-medium transition text-amber-400 hover:text-white hover:bg-gray-800 flex items-center">
           <i class="fa-solid fa-terminal mr-1.5 text-xs"></i>Serial Console
         </button>
@@ -473,62 +441,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             <pre id="raw-json" class="mt-3 p-3 bg-gray-950 rounded-lg text-emerald-400 overflow-x-auto text-[11px] leading-relaxed">{}</pre>
           </details>
 
-        </div>
-      </div>
-    </div>
-
-    <!-- ============================================================== -->
-    <!-- TAB 2: RLM CONVERSATIONAL CHAT STUDIO -->
-    <!-- ============================================================== -->
-    <div id="tab-chat" class="hidden space-y-6">
-      <div class="glass-card p-6 rounded-2xl space-y-4 border-l-4 border-emerald-500">
-        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-800 pb-3">
-          <div>
-            <span class="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest">Conversational RLM Simulation</span>
-            <h2 class="text-lg font-bold text-white mt-0.5">Chat &amp; Reason with the Embedded RLM Agent</h2>
-            <p class="text-xs text-gray-400">Interactive testing model for Mac/PC simulation and physical ESP32 Arduino serial chat</p>
-          </div>
-          <div class="flex items-center space-x-2 text-xs font-mono">
-            <span class="px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800">
-              <i class="fa-solid fa-circle text-[8px] mr-1.5 animate-pulse"></i>RLM Ready
-            </span>
-          </div>
-        </div>
-
-        <!-- Chat Container -->
-        <div id="chat-messages" class="h-96 overflow-y-auto space-y-3 p-3 bg-gray-950/70 border border-gray-800 rounded-xl">
-          <!-- Bot greeting -->
-          <div class="flex items-start space-x-2.5 max-w-xl">
-            <div class="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              <i class="fa-solid fa-robot"></i>
-            </div>
-            <div class="bg-gray-900 border border-gray-800 p-3 rounded-2xl rounded-tl-none text-xs text-gray-200 leading-relaxed shadow-sm">
-              Hello! I am your Edge-RLM agent running on the dual-core ESP32 simulation engine. You can chat with me, test movie reviews, or ask questions. I reason through dynamic recursive depth (2 to 8 steps) with early halting.
-            </div>
-          </div>
-        </div>
-
-        <!-- Chat Input Bar -->
-        <div class="flex items-center space-x-2 pt-2">
-          <input type="text" id="chat-input" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Type a sentence, review, or question to chat with RLM..." class="flex-1 bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 text-gray-100 placeholder-gray-500 transition">
-          <button onclick="sendChatMessage()" id="btn-chat-send" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md transition flex items-center space-x-1.5">
-            <i class="fa-solid fa-paper-plane text-xs"></i>
-            <span>Send</span>
-          </button>
-        </div>
-
-        <!-- Quick prompts -->
-        <div class="flex flex-wrap gap-1.5 text-xs text-gray-400 pt-1">
-          <span class="text-[11px] text-gray-500">Quick tests:</span>
-          <button onclick="sendQuickChat('the acting was phenomenal and deeply moving')" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">
-            Phenomenal and moving
-          </button>
-          <button onclick="sendQuickChat('an uninspired and painfully boring film')" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">
-            Painfully boring
-          </button>
-          <button onclick="sendQuickChat('How do you work?')" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300">
-            How do you work?
-          </button>
         </div>
       </div>
     </div>
@@ -890,7 +802,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     let myChart = null;
 
     function switchTab(tabId) {
-      ['demo', 'chat', 'serial', 'coproc', 'patent', 'verify', 'defense'].forEach(t => {
+      ['demo', 'serial', 'coproc', 'patent', 'verify', 'defense'].forEach(t => {
         document.getElementById(`tab-${t}`).classList.add('hidden');
         const btn = document.getElementById(`tab-btn-${t}`);
         btn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition text-gray-400 hover:text-white hover:bg-gray-800 flex items-center";
@@ -899,8 +811,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       const activeBtn = document.getElementById(`tab-btn-${tabId}`);
       if (tabId === 'patent') {
         activeBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition bg-purple-600 text-white shadow-sm flex items-center";
-      } else if (tabId === 'chat') {
-        activeBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition bg-emerald-600 text-white shadow-sm flex items-center";
       } else if (tabId === 'serial') {
         activeBtn.className = "px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition bg-amber-600 text-white shadow-sm flex items-center";
       } else if (tabId === 'coproc') {
@@ -1117,82 +1027,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       });
     }
 
-    // Chat Studio Methods
-    async function sendChatMessage() {
-      const input = document.getElementById('chat-input');
-      const text = input.value.trim();
-      if (!text) return;
-
-      appendChatMessage(text, 'user');
-      input.value = '';
-
-      const btn = document.getElementById('btn-chat-send');
-      btn.disabled = true;
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
-
-      try {
-        const resp = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: text,
-            profile: currentProfile,
-            batt_mv: currentBattery
-          })
-        });
-        const data = await resp.json();
-        appendChatMessage(data.reply, 'bot', data);
-      } catch (e) {
-        console.error(e);
-        appendChatMessage('Error communicating with RLM model.', 'bot');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="fa-solid fa-paper-plane text-xs"></i><span>Send</span>`;
-      }
-    }
-
-    function sendQuickChat(prompt) {
-      document.getElementById('chat-input').value = prompt;
-      sendChatMessage();
-    }
-
-    function appendChatMessage(msg, sender, meta) {
-      const box = document.getElementById('chat-messages');
-      const wrapper = document.createElement('div');
-      wrapper.className = sender === 'user' ? 'flex justify-end' : 'flex items-start space-x-2.5 max-w-xl';
-
-      if (sender === 'user') {
-        wrapper.innerHTML = `
-          <div class="bg-cyan-600 text-white p-3 rounded-2xl rounded-tr-none text-xs leading-relaxed max-w-md shadow-sm">
-            ${msg}
-          </div>
-        `;
-      } else {
-        let metaHtml = '';
-        if (meta && meta.verdict) {
-          metaHtml = `
-            <div class="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-gray-800 font-mono text-[10px]">
-              <span class="px-2 py-0.5 rounded ${meta.pred === 1 ? 'bg-emerald-950 text-emerald-400' : 'bg-rose-950 text-rose-400'} font-bold">${meta.verdict} (${meta.confidence}%)</span>
-              <span class="px-2 py-0.5 rounded bg-gray-800 text-cyan-400">${meta.steps} steps (${meta.saved_steps} saved)</span>
-              <span class="px-2 py-0.5 rounded bg-gray-800 text-amber-400">${meta.us} μs</span>
-            </div>
-          `;
-        }
-        wrapper.innerHTML = `
-          <div class="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-            <i class="fa-solid fa-robot"></i>
-          </div>
-          <div class="bg-gray-900 border border-gray-800 p-3 rounded-2xl rounded-tl-none text-xs text-gray-200 leading-relaxed shadow-sm">
-            <div class="whitespace-pre-line">${msg}</div>
-            ${metaHtml}
-          </div>
-        `;
-      }
-
-      box.appendChild(wrapper);
-      box.scrollTop = box.scrollHeight;
-    }
-
     // Serial Terminal Methods
     async function sendSerialCmd(cmd) {
       const term = document.getElementById('serial-terminal');
@@ -1296,10 +1130,22 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
         if url.path == "/" or url.path == "/index.html":
+            chat_page = (REPO_ROOT / "host" / "chat.html").read_text(encoding="utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(chat_page.encode("utf-8"))
+        elif url.path == "/lab":
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(HTML_CONTENT.encode("utf-8"))
+        elif url.path == "/api/assistant/status":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(json.dumps(chat_status()).encode("utf-8"))
         elif url.path == "/graph":
             graph_page = (REPO_ROOT / "host" / "pipeline_graph.html").read_text(encoding="utf-8")
             self.send_response(200)
@@ -1350,27 +1196,49 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         url = urlparse(self.path)
         content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode("utf-8")
-        req = json.loads(body) if body else {}
+        if content_length > 65536:
+            self.send_response(413)
+            self.end_headers()
+            return
+        try:
+            body = self.rfile.read(content_length).decode("utf-8")
+            req = json.loads(body) if body else {}
+            if not isinstance(req, dict):
+                raise ValueError("JSON request must be an object")
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Invalid JSON request body"}).encode("utf-8"))
+            return
 
-        if url.path == "/api/infer":
+        if url.path == "/api/assistant/chat":
+            try:
+                result = respond_to_chat(
+                    text=req.get("text", ""),
+                    history=req.get("history", []),
+                    mode=req.get("mode", "chat"),
+                    profile=req.get("profile", "PERF"),
+                    inference=run_inference,
+                )
+            except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as error:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(error)}).encode("utf-8"))
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(json.dumps(result).encode("utf-8"))
+
+        elif url.path == "/api/infer":
             text = req.get("text", "")
             profile = req.get("profile", "PERF")
             batt_mv = float(req.get("batt_mv", 4000.0))
             budget = 8 if profile == "PERF" else (6 if profile == "BAL" else 4)
             result = run_inference(text, budget, profile, batt_mv)
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(result).encode("utf-8"))
-
-        elif url.path == "/api/chat":
-            text = req.get("text", "")
-            profile = req.get("profile", "PERF")
-            batt_mv = float(req.get("batt_mv", 4000.0))
-            budget = 8 if profile == "PERF" else (6 if profile == "BAL" else 4)
-            result = run_chat(text, budget, profile, batt_mv)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -1392,7 +1260,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 def main():
     port = int(os.environ.get("PORT", 8000))
-    server = HTTPServer(("0.0.0.0", port), RequestHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), RequestHandler)
     print(f"================================================================")
     print(f"  Edge-RLM ESP32 Review & Demonstration Server Running")
     print(f"  Local / Preview URL: http://0.0.0.0:{port}")

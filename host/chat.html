@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
+  <title>Edge-RLM · Project Chat</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0d12; --panel:#11141c; --panel-hi:#171b25; --line:#252b38; --text:#edf1f7; --muted:#8d96a7; --mint:#8de1c1; --blue:#94b8ff; --warm:#f2c982; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:14px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,select,textarea { font:inherit; }
+    button { color:inherit; }
+    .app { min-height:100vh; display:flex; flex-direction:column; }
+    header { height:66px; flex:0 0 66px; display:flex; justify-content:space-between; align-items:center; gap:16px; border-bottom:1px solid #20242d; padding:0 clamp(16px,4vw,52px); background:#0c0f15; }
+    .brand { display:flex; align-items:center; gap:11px; color:inherit; text-decoration:none; }
+    .brand-icon { display:grid; place-items:center; width:34px; height:34px; border:1px solid #31534e; border-radius:10px; background:linear-gradient(145deg,#1a3935,#142520); color:var(--mint); font-size:12px; font-weight:800; letter-spacing:-.03em; }
+    .brand-title { font-weight:720; letter-spacing:.01em; }
+    .brand-caption { display:block; color:var(--muted); font-size:10px; margin-top:1px; }
+    .header-right { display:flex; gap:8px; align-items:center; }
+    .status { display:flex; align-items:center; gap:7px; margin-right:8px; color:#abb3c1; font-size:11px; }
+    .dot { width:7px; height:7px; display:inline-block; border-radius:50%; background:#60d5a2; box-shadow:0 0 9px #60d5a277; }
+    .status.local .dot { background:var(--warm); box-shadow:0 0 9px #f2c98255; }
+    .status.waiting .dot { background:#8593a9; box-shadow:none; }
+    .link-button,.new-button { display:inline-flex; align-items:center; gap:7px; border:1px solid var(--line); background:#121720; color:#dce2ec; text-decoration:none; border-radius:9px; padding:8px 11px; font-size:11px; cursor:pointer; }
+    .link-button:hover,.new-button:hover { background:#1a202c; border-color:#3a4658; text-decoration:none; }
+    main { width:min(900px,100%); margin:0 auto; padding:26px clamp(14px,3vw,28px) 15px; flex:1; display:flex; flex-direction:column; }
+    .topline { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+    .eyebrow { text-transform:uppercase; letter-spacing:.13em; font-size:9px; font-weight:750; color:#88b9aa; }
+    .profile { border:1px solid var(--line); background:#10141c; color:#abb5c4; border-radius:8px; padding:6px 9px; font-size:10px; outline:0; }
+    .welcome { margin:auto 0; padding:36px 0 28px; transition:all .2s ease; }
+    .welcome.hidden { display:none; }
+    .welcome h1 { max-width:700px; margin:8px 0 10px; font-size:clamp(29px,5vw,47px); line-height:1.13; letter-spacing:-.045em; font-weight:690; }
+    .welcome p { max-width:650px; margin:0; color:#a6afbd; font-size:14px; }
+    .capabilities { display:flex; flex-wrap:wrap; gap:7px; margin-top:18px; }
+    .capability { color:#aeb8c7; background:#111720; border:1px solid #252e3a; border-radius:999px; padding:6px 10px; font-size:10px; }
+    .capability b { color:var(--mint); font-weight:650; }
+    .starter-title { color:#7f899a; font-size:10px; margin:24px 0 8px; }
+    .starters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-width:660px; }
+    .starter { min-height:58px; border:1px solid #252d3a; background:#11151d; color:#ccd4df; border-radius:10px; padding:10px 12px; text-align:left; cursor:pointer; font-size:11px; transition:.15s ease; }
+    .starter:hover { background:#171d27; border-color:#3a485d; transform:translateY(-1px); }
+    .starter span { display:block; color:#758194; font-size:9px; margin-top:3px; }
+    .conversation { flex:1; min-height:140px; max-height:calc(100vh - 290px); overflow-y:auto; padding:0 4px 18px; display:flex; flex-direction:column; gap:20px; scroll-behavior:smooth; }
+    .conversation.empty { display:none; }
+    .message { display:grid; grid-template-columns:29px minmax(0,1fr); gap:11px; align-items:start; max-width:790px; animation:fadein .18s ease; }
+    @keyframes fadein { from {opacity:0;transform:translateY(4px)} to {opacity:1;transform:translateY(0)} }
+    .avatar { width:27px; height:27px; border-radius:9px; display:grid; place-items:center; font-size:9px; font-weight:750; }
+    .message.user .avatar { background:#223149; border:1px solid #354964; color:#c5d7f1; }
+    .message.assistant .avatar { background:#1b352f; border:1px solid #31574c; color:var(--mint); }
+    .message-content { min-width:0; padding-top:2px; }
+    .message-author { color:#8792a3; font-size:9px; margin:0 0 5px; }
+    .message-text { color:#e0e5ed; font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .message-text strong { color:#f3f6fb; font-weight:650; }
+    .message-text code { background:#1a212c; border:1px solid #293342; border-radius:4px; padding:1px 4px; color:#aed3ff; font-size:.92em; }
+    .message.user .message-text { color:#d6e0ef; }
+    .message-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:10px; }
+    .meta-pill { border:1px solid #28313e; background:#121720; color:#98a4b5; border-radius:999px; font-size:9px; padding:3px 7px; }
+    .analysis { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
+    .analysis-item { border:1px solid #254039; background:#11211e; border-radius:8px; padding:6px 9px; min-width:84px; }
+    .analysis-item b { display:block; color:#def8ee; font-size:12px; }
+    .analysis-item span { color:#91aa9f; font-size:8px; text-transform:uppercase; letter-spacing:.07em; }
+    .analysis-item.verdict b { color:var(--mint); }
+    .analysis-item.negative b { color:#ffb4a6; }
+    .sources { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .source { border:1px solid #2a3546; background:#131a25; border-radius:7px; color:#a8c0e5; font-size:9px; padding:4px 7px; text-decoration:none; }
+    .source:hover { border-color:#506888; color:#d4e4fc; text-decoration:none; }
+    .typing { color:#8e9caf; font-size:11px; display:flex; align-items:center; gap:8px; }
+    .typing-dots { display:flex; gap:3px; }
+    .typing-dots i { width:4px; height:4px; border-radius:50%; background:#9aa7b8; animation:pulse 1s ease infinite; }
+    .typing-dots i:nth-child(2) { animation-delay:.15s; } .typing-dots i:nth-child(3) { animation-delay:.3s; }
+    @keyframes pulse { 0%,60%,100%{opacity:.3;transform:translateY(0)} 30%{opacity:1;transform:translateY(-3px)} }
+    .composer-wrap { margin-top:auto; padding-top:16px; }
+    .mode-tabs { display:flex; gap:5px; margin:0 0 8px 3px; }
+    .mode-tab { border:1px solid transparent; background:transparent; color:#818c9d; border-radius:7px; padding:5px 9px; cursor:pointer; font-size:10px; }
+    .mode-tab.active { color:#d6e9e2; background:#14221f; border-color:#29443d; }
+    .mode-tab.review.active { color:#d9e4fa; background:#17202e; border-color:#34465f; }
+    .composer { border:1px solid #343d4b; background:#11151c; border-radius:14px; padding:10px; box-shadow:0 10px 35px #0003; transition:border-color .15s; }
+    .composer:focus-within { border-color:#496b5f; }
+    textarea { display:block; width:100%; min-height:43px; max-height:150px; border:0; outline:0; resize:none; background:transparent; color:var(--text); padding:7px 8px; font-size:12px; line-height:1.55; }
+    textarea::placeholder { color:#697485; }
+    .composer-bottom { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 2px 0; }
+    .composer-hint { color:#778293; font-size:9px; }
+    .send { width:33px; height:31px; border:1px solid #476e61; background:#1b493b; border-radius:9px; display:grid; place-items:center; color:#d7f6e9; cursor:pointer; }
+    .send:hover { background:#23624c; }
+    .send:disabled { opacity:.45; cursor:wait; }
+    .send svg { width:14px; height:14px; }
+    .footnote { color:#6f7b8e; text-align:center; font-size:9px; padding:9px 3px 2px; }
+    .footnote strong { color:#a1adbb; font-weight:550; }
+    .toast { position:fixed; right:18px; bottom:18px; max-width:min(380px,calc(100vw - 36px)); border:1px solid #593e3c; background:#221917; color:#ffd4c9; border-radius:10px; padding:10px 12px; font-size:11px; box-shadow:0 8px 30px #0006; display:none; }
+    @media(max-width:600px) {
+      header { height:58px; flex-basis:58px; padding:0 12px; }
+      .brand-caption,.status,.link-button.lab { display:none; }
+      .link-button,.new-button { padding:7px 8px; font-size:10px; }
+      main { padding-top:18px; }
+      .welcome { padding:26px 0 20px; }
+      .welcome h1 { font-size:34px; }
+      .starters { grid-template-columns:1fr; }
+      .conversation { max-height:calc(100vh - 320px); }
+      .message { grid-template-columns:25px minmax(0,1fr); gap:8px; }
+      .avatar { width:24px; height:24px; }
+      .footnote { font-size:8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <a class="brand" href="/" aria-label="Edge-RLM chat home">
+        <span class="brand-icon">ER</span>
+        <span><span class="brand-title">Edge-RLM</span><span class="brand-caption">ESP32 project assistant</span></span>
+      </a>
+      <div class="header-right">
+        <span class="status waiting" id="backend-status"><i class="dot"></i><span>Checking local backend…</span></span>
+        <a class="link-button" href="/graph">◉ &nbsp;Graph</a>
+        <a class="link-button lab" href="/lab">Workbench</a>
+        <button class="new-button" id="new-chat" type="button">＋ &nbsp;New chat</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="topline"><span class="eyebrow">Private by default · local project</span>
+        <select class="profile" id="profile" aria-label="Edge-RLM inference profile"><option value="PERF">PERF · 240 MHz</option><option value="BAL">BAL · 160 MHz</option><option value="ECO">ECO · 80 MHz</option></select>
+      </div>
+
+      <section class="welcome" id="welcome">
+        <div class="eyebrow">A focused interface for the project</div>
+        <h1>Ask about the system.<br>Test the model.</h1>
+        <p>Ask repository questions with local source citations, or run an actual review through the Edge-RLM C++ inference engine. These are separate tools—the ESP32 model classifies sentiment; it does not generate open-ended text.</p>
+        <div class="capabilities"><span class="capability"><b>Project chat</b> · checked-in docs</span><span class="capability"><b>Review analysis</b> · native RLM inference</span><span class="capability"><b>Optional</b> · local Ollama generation</span></div>
+        <div class="starter-title">Try a prompt</div>
+        <div class="starters">
+          <button class="starter" data-mode="chat" data-prompt="How does recursive halting work in this project?">How does recursive halting work?<span>Project question · cites the repository</span></button>
+          <button class="starter" data-mode="chat" data-prompt="What parts run on the ESP32 and what runs on the host?">What runs on the ESP32?<span>Project question · explain the split</span></button>
+          <button class="starter" data-mode="analyze" data-prompt="The pacing was sharp, the performances felt genuine, and I loved the ending.">Analyze a positive review<span>Runs the bundled Edge-RLM classifier</span></button>
+          <button class="starter" data-mode="analyze" data-prompt="The story dragged, the dialogue felt flat, and the ending was disappointing.">Analyze a negative review<span>Shows confidence, recursion depth, and latency</span></button>
+        </div>
+      </section>
+
+      <section class="conversation empty" id="conversation" aria-live="polite" aria-label="Chat messages"></section>
+
+      <section class="composer-wrap">
+        <div class="mode-tabs" role="tablist" aria-label="Choose an action">
+          <button class="mode-tab active" data-mode="chat" id="chat-mode">Ask about the project</button>
+          <button class="mode-tab review" data-mode="analyze" id="analyze-mode">Analyze a review</button>
+        </div>
+        <form class="composer" id="composer">
+          <textarea id="message" maxlength="1200" rows="1" placeholder="Ask about the code, model, training, firmware…" aria-label="Your message"></textarea>
+          <div class="composer-bottom"><span class="composer-hint" id="composer-hint">Enter to send · Shift + Enter for a new line</span><button class="send" type="submit" id="send" aria-label="Send message">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m4 12 16-7-5.9 15-2.7-6.4L4 12Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m11.4 13.6 4.2-4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button></div>
+        </form>
+        <div class="footnote"><strong>Chat:</strong> loopback Ollama if running; otherwise local repository search. &nbsp; <strong>Review analysis:</strong> native host build of the ESP32-parity C++ model. No message is sent to a hosted AI API.</div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="alert"></div>
+
+  <script>
+    (() => {
+      const $ = id => document.getElementById(id);
+      const input = $('message');
+      const conversation = $('conversation');
+      const welcome = $('welcome');
+      const send = $('send');
+      const profile = $('profile');
+      const history = [];
+      let mode = 'chat';
+      let busy = false;
+      let currentRequest = null;
+      let toastTimer;
+      const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+      function chooseMode(nextMode) {
+        mode = nextMode === 'analyze' ? 'analyze' : 'chat';
+        $('chat-mode').classList.toggle('active', mode === 'chat');
+        $('analyze-mode').classList.toggle('active', mode === 'analyze');
+        input.placeholder = mode === 'analyze'
+          ? 'Paste a movie or product review to classify…'
+          : 'Ask about the code, model, training, firmware…';
+        $('composer-hint').textContent = mode === 'analyze'
+          ? 'Runs locally in the C++ host harness · Enter to analyze'
+          : 'Enter to send · Shift + Enter for a new line';
+      }
+
+      function appendFormattedText(container, value) {
+        const source = String(value ?? '');
+        const parts = source.split(/(\\*\\*[^*]+\\*\\*|`[^`]+`)/g);
+        parts.forEach(part => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            const strong = document.createElement('strong'); strong.textContent = part.slice(2,-2); container.appendChild(strong);
+          } else if (part.startsWith('`') && part.endsWith('`')) {
+            const code = document.createElement('code'); code.textContent = part.slice(1,-1); container.appendChild(code);
+          } else container.appendChild(document.createTextNode(part));
+        });
+      }
+
+      function addMessage(role, text, options = {}) {
+        welcome.classList.add('hidden');
+        conversation.classList.remove('empty');
+        const row = document.createElement('article');
+        row.className = `message ${role}`;
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        avatar.textContent = role === 'user' ? 'YOU' : 'ER';
+        const content = document.createElement('div');
+        content.className = 'message-content';
+        const author = document.createElement('div');
+        author.className = 'message-author';
+        author.textContent = role === 'user' ? 'You' : 'Edge-RLM project assistant';
+        const body = document.createElement('div');
+        body.className = 'message-text';
+        appendFormattedText(body, text);
+        content.append(author, body);
+        if (options.analysis) renderAnalysis(content, options.analysis);
+        if (options.sources?.length) renderSources(content, options.sources);
+        if (options.engine) {
+          const meta = document.createElement('div');
+          meta.className = 'message-meta';
+          const pill = document.createElement('span');
+          pill.className = 'meta-pill';
+          pill.textContent = options.engine;
+          meta.appendChild(pill);
+          content.appendChild(meta);
+        }
+        row.append(avatar, content);
+        conversation.appendChild(row);
+        conversation.scrollTop = conversation.scrollHeight;
+        return row;
+      }
+
+      function renderAnalysis(container, analysis) {
+        const wrap = document.createElement('div');
+        wrap.className = 'analysis';
+        const positive = analysis.verdict === 'Positive';
+        const values = [
+          [analysis.verdict, 'Prediction', positive ? 'verdict' : 'negative'],
+          [`${Number(analysis.confidence).toFixed(1)}%`, 'Confidence', ''],
+          [`${analysis.steps} / 8`, 'Recursive steps', ''],
+          [`${analysis.mass} / ${analysis.threshold}`, 'Halting mass', ''],
+          [`${analysis.latency_us} μs`, 'Host latency', ''],
+          [`${analysis.saved_steps}`, 'Steps saved', ''],
+        ];
+        values.forEach(([value, label, cls]) => {
+          const item = document.createElement('div');
+          item.className = `analysis-item ${cls}`;
+          const strong = document.createElement('b'); strong.textContent = value;
+          const small = document.createElement('span'); small.textContent = label;
+          item.append(strong, small); wrap.appendChild(item);
+        });
+        container.appendChild(wrap);
+      }
+
+      function renderSources(container, sources) {
+        const wrap = document.createElement('div');
+        wrap.className = 'sources';
+        sources.forEach(source => {
+          const link = document.createElement('a');
+          link.className = 'source';
+          const path = String(source.path || '').replace(/^\/+|\.\./g, '');
+          const line = Math.max(1, Number(source.line) || 1);
+          link.href = `https://github.com/PrachyatMisra/rlm-esp32-aagm/blob/main/${path}#L${line}`;
+          link.target = '_blank'; link.rel = 'noreferrer';
+          link.textContent = `${path.split('/').pop()}:L${line}`;
+          link.title = `${path}, line ${line}`;
+          wrap.appendChild(link);
+        });
+        container.appendChild(wrap);
+      }
+
+      function addTyping() {
+        const row = document.createElement('article');
+        row.className = 'message assistant'; row.id = 'typing';
+        row.innerHTML = '<div class="avatar">ER</div><div class="typing"><span>Working locally</span><span class="typing-dots"><i></i><i></i><i></i></span></div>';
+        conversation.appendChild(row); conversation.scrollTop = conversation.scrollHeight;
+      }
+
+      function showToast(message) {
+        const toast = $('toast'); toast.textContent = message; toast.style.display = 'block';
+        clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.style.display='none', 5200);
+      }
+
+      async function submit(text = input.value.trim()) {
+        if (!text || busy) return;
+        busy = true; send.disabled = true;
+        input.value = ''; input.style.height = '43px';
+        addMessage('user', text);
+        const requestHistory = history.slice(-8);
+        history.push({role:'user',content:text});
+        addTyping();
+        const controller = new AbortController();
+        currentRequest = controller;
+        try {
+          const response = await fetch('/api/assistant/chat', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text,history:requestHistory,mode,profile:profile.value}),
+            signal:controller.signal
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || `Server returned ${response.status}`);
+          $('typing')?.remove();
+          addMessage('assistant', result.reply || 'No response was returned.', {
+            analysis:result.analysis, sources:result.sources, engine:result.engine
+          });
+          history.push({role:'assistant',content:result.reply || ''});
+        } catch (error) {
+          if (error.name === 'AbortError') return;
+          $('typing')?.remove();
+          addMessage('assistant', `I couldn't reach the local project service. ${error.message}\n\nCheck that host/web_demo.py is still running, then try again.`, {engine:'Local service unavailable'});
+          showToast('The local chat request failed.');
+        } finally {
+          if (currentRequest === controller) {
+            currentRequest = null; busy = false; send.disabled = false; input.focus();
+          }
+        }
+      }
+
+      $('composer').addEventListener('submit', event => {event.preventDefault();submit();});
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !event.shiftKey) {event.preventDefault();submit();}
+      });
+      input.addEventListener('input', () => {input.style.height='43px';input.style.height=Math.min(input.scrollHeight,150)+'px';});
+      document.querySelectorAll('.mode-tab').forEach(button => button.addEventListener('click',()=>chooseMode(button.dataset.mode)));
+      document.querySelectorAll('.starter').forEach(button => button.addEventListener('click',()=>{
+        chooseMode(button.dataset.mode); input.value=button.dataset.prompt; input.focus(); input.dispatchEvent(new Event('input')); submit(button.dataset.prompt);
+      }));
+      $('new-chat').addEventListener('click',()=>{
+        currentRequest?.abort(); currentRequest=null; busy=false; send.disabled=false; $('typing')?.remove();
+        history.length=0; conversation.replaceChildren(); conversation.classList.add('empty'); welcome.classList.remove('hidden');
+        input.value=''; chooseMode('chat'); input.focus();
+      });
+      fetch('/api/assistant/status').then(response=>response.json()).then(data=>{
+        const badge = $('backend-status');
+        badge.classList.remove('waiting');
+        if (data.backend === 'local') badge.classList.add('local');
+        badge.querySelector('span').textContent = data.label || 'Local project assistant';
+        badge.title = `Model: ${data.model || 'none'} · Sentiment: ${data.sentiment_engine}`;
+      }).catch(()=>{
+        const badge = $('backend-status'); badge.classList.remove('waiting'); badge.classList.add('local');
+        badge.querySelector('span').textContent='Offline project mode';
+      });
+    })();
+  </script>
+</body>
+</html>
